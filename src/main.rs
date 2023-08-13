@@ -1,9 +1,3 @@
-//! Run with
-//!
-//! ```not_rust
-//! cargo run -p example-templates
-//! ```
-
 use askama::Template;
 use axum::{
     extract,
@@ -16,10 +10,8 @@ mod handlers;
 
 #[tokio::main]
 async fn main() {
-    // build our application with some routes
     let app = Router::new().route("/greet/:name", get(greet)).route("/static/tailwind-generated.css", get(handlers::assets::index_app_css));
 
-    // run it with hyper on localhost:3000
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
         .await
