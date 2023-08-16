@@ -5,6 +5,7 @@
     "tailwindcss": "^3.3.3"
   },
   "scripts": {
-    "tailwind:build": "tailwindcss -i ./public/tailwind.css -o ./public/tailwind-generated.css"
+    "tailwind:build": "tailwindcss -i ./static/tailwind.css -o ./static/tailwind-generated.css",
+    "postinstall": "tailwindcss -i ./static/tailwind.css -o ./static/tailwind-generated.css"
   }
 }
