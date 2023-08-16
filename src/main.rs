@@ -3,7 +3,7 @@ use axum::{
     extract,
     http::StatusCode,
     response::{Html, IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use tokio::signal;
@@ -11,7 +11,14 @@ mod handlers;
 
 #[tokio::main]
 async fn main() {
-    let app = Router::new().route("/", get(index)).route("/greet/:name", get(greet)).route("/static/tailwind-generated.css", get(handlers::assets::index_app_css));
+    let app = Router::new()
+        .route("/", get(index))
+        .route("/greet/:name", get(greet))
+        .route("/clicked", post(clicked))
+        .route(
+            "/static/tailwind-generated.css",
+            get(handlers::assets::index_app_css),
+        );
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
@@ -27,6 +34,10 @@ async fn index() -> impl IntoResponse {
 async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse {
     let template = HelloTemplate { name };
     HtmlTemplate(template)
+}
+
+async fn clicked() -> Html<&'static str> {
+    Html("<p>Wow you are so cool!</p>")
 }
 
 #[derive(Template)]
@@ -64,16 +75,12 @@ async fn shutdown_signal() {
             .expect("failed to install Ctrl+C handler");
     };
 
-    #[cfg(unix)]
     let terminate = async {
         signal::unix::signal(signal::unix::SignalKind::terminate())
             .expect("failed to install signal handler")
             .recv()
             .await;
     };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
 
     tokio::select! {
         _ = ctrl_c => {},

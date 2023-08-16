@@ -2,7 +2,7 @@ use axum::{
   http::header::{self, HeaderMap, HeaderValue},
   response::IntoResponse,
 };
-use mime::CSS;
+use mime::TEXT_CSS;
 const CSS_INDEX_APP: &str = include_str!("../../static/tailwind-generated.css");
 
 async fn asset(source: &'static [u8], ty: &'static str) -> impl IntoResponse {
@@ -12,7 +12,7 @@ async fn asset(source: &'static [u8], ty: &'static str) -> impl IntoResponse {
 }
 
 async fn css(source: &'static str) -> impl IntoResponse {
-  asset(source.as_bytes(), &CSS.as_str()).await
+  asset(source.as_bytes(), TEXT_CSS.essence_str()).await
 }
 
 pub async fn index_app_css() -> impl IntoResponse {
