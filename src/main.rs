@@ -3,11 +3,11 @@ use axum::{
     extract,
     http::StatusCode,
     response::{Html, IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, get_service},
     Router,
 };
 use tokio::signal;
-mod handlers;
+use tower_http::services::ServeFile;
 
 #[tokio::main]
 async fn main() {
@@ -15,10 +15,7 @@ async fn main() {
         .route("/", get(index))
         .route("/greet/:name", get(greet))
         .route("/clicked", post(clicked))
-        .route(
-            "/static/tailwind-generated.css",
-            get(handlers::assets::index_app_css),
-        );
+        .route("/static/styles.css", get_service(ServeFile::new("static/tailwind-generated.css")));
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
