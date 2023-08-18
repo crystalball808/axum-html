@@ -1,0 +1,6 @@
+<h1>Todos</h1>
+<ul>
+  {% for todo in todos %}
+    <li class="text-red-400 font-bold">{{ todo.label|e }}</li>
+  {% endfor %}
+</ul>

@@ -1,6 +1,8 @@
+use std::sync::{Arc, Mutex};
+
 use askama::Template;
 use axum::{
-    extract,
+    extract::{self, State},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::{get, post, get_service},
@@ -9,13 +11,28 @@ use axum::{
 use tokio::signal;
 use tower_http::services::ServeFile;
 
+#[derive(Clone)]
+struct Todo {
+    label: String,
+    completed: bool,
+}
+#[derive(Clone)]
+struct AppState {
+    todos: Arc<Mutex<Vec<Todo>>>
+}
+
 #[tokio::main]
 async fn main() {
+    let state = AppState {
+        todos: Arc::new(Mutex::new(vec![Todo { label: "Make a super app".to_owned(), completed: false }]))
+    };
     let app = Router::new()
         .route("/", get(index))
+        .route("/todos", get(todos))
         .route("/greet/:name", get(greet))
         .route("/clicked", post(clicked))
-        .route("/static/styles.css", get_service(ServeFile::new("static/tailwind-generated.css")));
+        .route("/static/styles.css", get_service(ServeFile::new("static/tailwind-generated.css")))
+        .with_state(state);
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
@@ -32,6 +49,11 @@ async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse 
     let template = HelloTemplate { name };
     HtmlTemplate(template)
 }
+async fn todos(State(state): State<AppState>) -> impl IntoResponse {
+    let todos = state.todos.lock().expect("Failed to lock the state");
+    let template = TodosTemplate { todos: todos.to_vec() };
+    HtmlTemplate(template)
+}
 
 async fn clicked() -> Html<&'static str> {
     Html("<p>Wow you are so cool!</p>")
@@ -41,6 +63,12 @@ async fn clicked() -> Html<&'static str> {
 #[template(path = "hello.html")]
 struct HelloTemplate {
     name: String,
+}
+
+#[derive(Template)]
+#[template(path = "todos.html")]
+struct TodosTemplate {
+    todos: Vec<Todo>
 }
 
 #[derive(Template)]

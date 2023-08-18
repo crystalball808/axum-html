@@ -15,6 +15,11 @@
   <div class="p-8">
     <p>This is p</p>
     <button hx-post="/clicked" hx-swap="outerHTML" class="bg-orange-500 text-amber-100 rounded p-2">Click me!</button>
+    <form>
+      <input type="text" name="todo" id="todo">
+      <button type="submit">Create</button>
+    </form>
+    <div hx-get="/todos" hx-trigger="load" hx-swap="innerHTML"></div>
   </div>
 </body>
 
