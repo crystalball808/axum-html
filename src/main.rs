@@ -13,14 +13,12 @@ use tokio::signal;
 use tower_http::services::ServeFile;
 use uuid::Uuid;
 
+
+mod routes;
+use routes::todos::{todos, Todo};
+
 #[derive(Clone)]
-struct Todo {
-    id: String,
-    label: String,
-    completed: bool,
-}
-#[derive(Clone)]
-struct AppState {
+pub struct AppState {
     todos: Arc<Mutex<Vec<Todo>>>,
 }
 
@@ -52,19 +50,15 @@ async fn main() {
         .unwrap();
 }
 
-async fn index() -> impl IntoResponse {
-    let html = include_str!("../templates/index.html");
-    Html(html)
+async fn index(State(state): State<AppState>) -> impl IntoResponse {
+    let todos = state.todos.lock().expect("Failed to lock the state");
+    let template = IndexTemplate {
+        todos: todos.to_vec(),
+    };
+    HtmlTemplate(template)
 }
 async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse {
     let template = HelloTemplate { name };
-    HtmlTemplate(template)
-}
-async fn todos(State(state): State<AppState>) -> impl IntoResponse {
-    let todos = state.todos.lock().expect("Failed to lock the state");
-    let template = TodosTemplate {
-        todos: todos.to_vec(),
-    };
     HtmlTemplate(template)
 }
 
@@ -77,7 +71,10 @@ struct TodoForm {
     todo: String,
 }
 
-async fn create_todo(State(state): State<AppState>, Form(todo_form): Form<TodoForm>) -> impl IntoResponse {
+async fn create_todo(
+    State(state): State<AppState>,
+    Form(todo_form): Form<TodoForm>,
+) -> impl IntoResponse {
     println!("New todo: {}", todo_form.todo);
     let new_todo = Todo {
         id: Uuid::new_v4().to_string(),
@@ -85,7 +82,10 @@ async fn create_todo(State(state): State<AppState>, Form(todo_form): Form<TodoFo
         completed: false,
     };
 
-    let mut todos = state.todos.lock().expect("Create todo: failed to lock todos");
+    let mut todos = state
+        .todos
+        .lock()
+        .expect("Create todo: failed to lock todos");
     todos.push(new_todo);
 
     let mut headers = HeaderMap::new();
@@ -100,15 +100,12 @@ struct HelloTemplate {
     name: String,
 }
 
-#[derive(Template)]
-#[template(path = "todos.html")]
-struct TodosTemplate {
-    todos: Vec<Todo>,
-}
 
 #[derive(Template)]
 #[template(path = "index.html")]
-struct IndexTemplate;
+struct IndexTemplate {
+    todos: Vec<Todo>,
+}
 
 struct HtmlTemplate<T>(T);
 
