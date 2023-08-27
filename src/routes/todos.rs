@@ -16,7 +16,7 @@ struct TodosTemplate {
     todos: Vec<Todo>,
 }
 
-pub async fn todos(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn get_todos(State(state): State<AppState>) -> impl IntoResponse {
     let todos = state.todos.lock().expect("Failed to lock the state");
     let template = TodosTemplate {
         todos: todos.to_vec(),

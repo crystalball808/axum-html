@@ -12,10 +12,8 @@ use std::sync::{Arc, Mutex};
 use tokio::signal;
 use tower_http::services::ServeFile;
 use uuid::Uuid;
-
-
 mod routes;
-use routes::todos::{todos, Todo};
+use routes::todos::{get_todos, Todo};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -33,7 +31,7 @@ async fn main() {
     };
     let app = Router::new()
         .route("/", get(index))
-        .route("/todos", get(todos))
+        .route("/todos", get(get_todos))
         .route("/todos", post(create_todo))
         .route("/greet/:name", get(greet))
         .route("/clicked", post(clicked))
