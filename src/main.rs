@@ -1,6 +1,6 @@
 use askama::Template;
 use axum::{
-    extract::{self, State},
+    extract::State,
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::{get, get_service, post},
@@ -13,6 +13,7 @@ use tokio::signal;
 use tower_http::services::ServeFile;
 use uuid::Uuid;
 mod routes;
+use dotenv::dotenv;
 use routes::todos::{get_todos, Todo};
 
 #[derive(Clone)]
@@ -20,8 +21,20 @@ pub struct AppState {
     todos: Arc<Mutex<Vec<Todo>>>,
 }
 
+mod db;
+
+
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
+
+    let db_client = match db::setup().await {
+        Ok(client) => client,
+        Err(error) => {
+            println!("DB connection failed {}", error);
+            std::process::exit(1);
+        }
+    };
     let state = AppState {
         todos: Arc::new(Mutex::new(vec![Todo {
             id: Uuid::new_v4().to_string(),
@@ -33,8 +46,6 @@ async fn main() {
         .route("/", get(index))
         .route("/todos", get(get_todos))
         .route("/todos", post(create_todo))
-        .route("/greet/:name", get(greet))
-        .route("/clicked", post(clicked))
         .route(
             "/static/styles.css",
             get_service(ServeFile::new("static/tailwind-generated.css")),
@@ -54,14 +65,6 @@ async fn index(State(state): State<AppState>) -> impl IntoResponse {
         todos: todos.to_vec(),
     };
     HtmlTemplate(template)
-}
-async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse {
-    let template = HelloTemplate { name };
-    HtmlTemplate(template)
-}
-
-async fn clicked() -> Html<&'static str> {
-    Html("<p>Wow you are so cool!</p>")
 }
 
 #[derive(Deserialize)]
@@ -97,7 +100,6 @@ async fn create_todo(
 struct HelloTemplate {
     name: String,
 }
-
 
 #[derive(Template)]
 #[template(path = "index.html")]

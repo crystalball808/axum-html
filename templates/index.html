@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="static/styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="static/styles.css" />
   <script src="https://unpkg.com/htmx.org@1.9.4"
     integrity="sha384-zUfuhFKKZCbHTY6aRR46gxiqszMk5tcHjsVFxnUo8VMus4kHGVdIYVbOYYNlKmHV"
     crossorigin="anonymous"></script>
@@ -13,10 +13,8 @@
 
 <body>
   <div class="p-8">
-    <p>This is p</p>
-    <button hx-post="/clicked" hx-swap="outerHTML" class="bg-orange-500 text-amber-100 rounded p-2">Click me!</button>
     <form hx-post="/todos" hx-swap="none">
-      <input type="text" name="todo" id="todo" placeholder="Insert a todo">
+      <input type="text" name="todo" id="todo" placeholder="Insert a todo" />
       <button type="submit">Create</button>
     </form>
     <h1>Todos</h1>
