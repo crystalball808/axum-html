@@ -23,7 +23,6 @@ pub struct AppState {
 
 mod db;
 
-
 #[tokio::main]
 async fn main() {
     dotenv().ok();
@@ -31,10 +30,11 @@ async fn main() {
     let db_client = match db::setup().await {
         Ok(client) => client,
         Err(error) => {
-            println!("DB connection failed {}", error);
+            println!("DB client setup failed\nError: {}", error);
             std::process::exit(1);
         }
     };
+    dbg!(&db_client);
     let state = AppState {
         todos: Arc::new(Mutex::new(vec![Todo {
             id: Uuid::new_v4().to_string(),

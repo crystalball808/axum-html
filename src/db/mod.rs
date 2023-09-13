@@ -13,7 +13,8 @@ pub async fn setup() -> Result<Client, Box<dyn Error>> {
     })
     .await?;
 
-    migrations::setup_migrations(&client);
+    println!("Hello bitch");
+    let _ = migrations::setup_migrations(&client)?;
 
     return Ok(client);
 }
