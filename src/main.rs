@@ -34,7 +34,7 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    dbg!(&db_client);
+
     let state = AppState {
         todos: Arc::new(Mutex::new(vec![Todo {
             id: Uuid::new_v4().to_string(),
