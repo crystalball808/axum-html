@@ -19,7 +19,7 @@ async fn set_last_migration_number(
 ) -> Result<(), Box<dyn Error>> {
     client
         .execute(format!(
-            "INSERT INTO migration (last_migration_name) VALUES ('{}');",
+            "UPDATE migration SET last_migration_name = '{}';",
             last_migration_number
         ))
         .await?;
@@ -31,6 +31,7 @@ pub async fn setup_migrations(client: &Client) -> Result<(), Box<dyn Error>> {
     let files = fs::read_dir("migrations")?;
 
     let last_migration_number = get_last_migration_number(client).await.unwrap_or(0);
+    dbg!(&last_migration_number);
 
     for file in files {
         let file = file?;
@@ -47,6 +48,7 @@ pub async fn setup_migrations(client: &Client) -> Result<(), Box<dyn Error>> {
                 let tx = client.transaction().await.unwrap();
 
                 let sql_query = fs::read_to_string(&path)?;
+                dbg!(&sql_query);
                 let sql_statements = sql_query.split(";");
 
                 for sql_statement in sql_statements {
