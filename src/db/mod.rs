@@ -17,3 +17,7 @@ pub async fn setup() -> Result<Client, Box<dyn Error>> {
 
     return Ok(client);
 }
+
+pub(crate) fn check_session_id(session_id: u32) -> bool {
+    todo!()
+}

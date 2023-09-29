@@ -2,13 +2,14 @@ use askama::Template;
 use axum::{
     extract::State,
     http::StatusCode,
-    response::{Html, IntoResponse, Response},
+    response::{Html, IntoResponse, Redirect, Response},
     routing::{get, get_service, post},
     Form, Router,
 };
+use axum_extra::extract::cookie::{Cookie, CookieJar};
 use hyper::HeaderMap;
 use serde::Deserialize;
-use std::sync::{Arc, Mutex};
+use std::{sync::{Arc, Mutex}, fs};
 use tokio::signal;
 use tower_http::services::ServeFile;
 use uuid::Uuid;
@@ -44,6 +45,7 @@ async fn main() {
     };
     let app = Router::new()
         .route("/", get(index))
+        .route("/login", get(login_page))
         .route("/todos", get(get_todos))
         .route("/todos", post(create_todo))
         .route(
@@ -59,12 +61,23 @@ async fn main() {
         .unwrap();
 }
 
-async fn index(State(state): State<AppState>) -> impl IntoResponse {
-    let todos = state.todos.lock().expect("Failed to lock the state");
-    let template = IndexTemplate {
-        todos: todos.to_vec(),
-    };
-    HtmlTemplate(template)
+async fn index(jar: CookieJar, state: State<AppState>) -> Response {
+    if let Some(session_id) = jar.get("sesstion_id") {
+        let session_id: u32 = session_id.to_string().parse().unwrap();
+        if db::check_session_id(session_id) {
+            let todos = state.todos.lock().expect("Failed to lock the state");
+            let template = IndexTemplate {
+                todos: todos.to_vec(),
+            };
+            return Html(template.to_string()).into_response();
+        }
+    }
+
+    return Redirect::permanent("/login").into_response();
+}
+
+async fn login_page() -> Response {
+    Html(fs::read_to_string("templates/login.html").unwrap()).into_response()
 }
 
 #[derive(Deserialize)]
