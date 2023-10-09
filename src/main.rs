@@ -8,8 +8,12 @@ use axum::{
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar};
 use hyper::HeaderMap;
+use libsql_client::Client;
 use serde::Deserialize;
-use std::{sync::{Arc, Mutex}, fs};
+use std::{
+    fs,
+    sync::{Arc, Mutex},
+};
 use tokio::signal;
 use tower_http::services::ServeFile;
 use uuid::Uuid;
@@ -20,6 +24,7 @@ use routes::todos::{get_todos, Todo};
 #[derive(Clone)]
 pub struct AppState {
     todos: Arc<Mutex<Vec<Todo>>>,
+    db_client: Arc<Client>,
 }
 
 mod db;
@@ -42,10 +47,14 @@ async fn main() {
             label: "Make a super app".to_owned(),
             completed: false,
         }])),
+        db_client: Arc::new(db_client),
     };
     let app = Router::new()
         .route("/", get(index))
         .route("/login", get(login_page))
+        .route("/login", post(login))
+        .route("/login-form", get(login_form))
+        .route("/register-form", get(register_form))
         .route("/todos", get(get_todos))
         .route("/todos", post(create_todo))
         .route(
@@ -77,7 +86,33 @@ async fn index(jar: CookieJar, state: State<AppState>) -> Response {
 }
 
 async fn login_page() -> Response {
-    Html(fs::read_to_string("templates/login.html").unwrap()).into_response()
+    let template = LoginPageTemplate {};
+    return Html(template.to_string()).into_response();
+}
+async fn login_form() -> Response {
+    return Html(fs::read_to_string("templates/login-form.html").unwrap()).into_response();
+}
+async fn register_form() -> Response {
+    return Html(fs::read_to_string("templates/register-form.html").unwrap()).into_response();
+}
+
+#[derive(Deserialize)]
+struct LoginForm {
+    email: String,
+    password: String,
+}
+async fn login(
+    State(state): State<AppState>,
+    Form(login_form): Form<LoginForm>,
+) -> impl IntoResponse {
+    let db_client = Arc::clone(&state.db_client);
+    let user_id =
+        db::get_user_id_from_login(&db_client, &login_form.email, &login_form.password).await;
+
+    match user_id {
+        Some(user_id) => {}
+        None => {}
+    }
 }
 
 #[derive(Deserialize)]
@@ -119,6 +154,9 @@ struct HelloTemplate {
 struct IndexTemplate {
     todos: Vec<Todo>,
 }
+#[derive(Template)]
+#[template(path = "login.html")]
+struct LoginPageTemplate {}
 
 struct HtmlTemplate<T>(T);
 

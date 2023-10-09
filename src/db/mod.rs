@@ -1,5 +1,5 @@
 use libsql_client::{Client, Config};
-use std::{env::var, error::Error};
+use std::{env::var, error::Error, fmt::format};
 
 mod migrations;
 
@@ -18,6 +18,15 @@ pub async fn setup() -> Result<Client, Box<dyn Error>> {
     return Ok(client);
 }
 
-pub(crate) fn check_session_id(session_id: u32) -> bool {
+pub fn check_session_id(session_id: u32) -> bool {
     todo!()
+}
+
+pub async fn get_user_id_from_login(client: &Client, email: &str, password: &str) -> Option<u32> {
+    // Maybe use libsql_client::Statement ???
+    let response = client.execute(format!("SELECT id FROM users WHERE email = {email} AND password = {password}")).await;
+    dbg!(&response);
+    
+    // TODO: remove it
+    None
 }
