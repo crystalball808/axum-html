@@ -1,5 +1,5 @@
-use libsql_client::{Client, Config};
-use std::{env::var, error::Error, fmt::format};
+use libsql_client::{Client, Config, Statement};
+use std::{env::var, error::Error};
 
 mod migrations;
 
@@ -24,9 +24,19 @@ pub fn check_session_id(session_id: u32) -> bool {
 
 pub async fn get_user_id_from_login(client: &Client, email: &str, password: &str) -> Option<u32> {
     // Maybe use libsql_client::Statement ???
-    let response = client.execute(format!("SELECT id FROM users WHERE email = {email} AND password = {password}")).await;
+    let response = client
+        .execute(format!(
+            "SELECT id FROM users WHERE email = {email} AND password = {password}"
+        ))
+        .await;
     dbg!(&response);
-    
-    // TODO: remove it
-    None
+
+    todo!();
+}
+
+pub async fn check_email_exists(client: &Client, email: &str) -> Result<bool, Box<dyn Error>> {
+    let statement = Statement::with_args("SELECT * FROM users WHERE email = ?", &[email]);
+    let response = client.execute(statement).await?;
+
+    return Ok(response.rows.len() > 0);
 }

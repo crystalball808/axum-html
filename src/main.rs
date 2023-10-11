@@ -54,6 +54,7 @@ async fn main() {
         .route("/login", get(login_page))
         .route("/login", post(login))
         .route("/login-form", get(login_form))
+        .route("/register", post(register))
         .route("/register-form", get(register_form))
         .route("/todos", get(get_todos))
         .route("/todos", post(create_todo))
@@ -112,6 +113,28 @@ async fn login(
     match user_id {
         Some(user_id) => {}
         None => {}
+    }
+}
+
+#[derive(Deserialize, Debug)]
+struct RegisterForm {
+    email: String,
+    first_name: String,
+    last_name: String,
+    password: String,
+}
+async fn register(
+    State(state): State<AppState>,
+    Form(register_form): Form<RegisterForm>,
+) -> Response {
+    let db_client = Arc::clone(&state.db_client);
+    dbg!(&register_form);
+    let email_exists = db::check_email_exists(&db_client, &register_form.email).await;
+
+    if email_exists {
+        return StatusCode::BAD_REQUEST.into_response();
+    } else {
+        todo!();
     }
 }
 
