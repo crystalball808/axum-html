@@ -9,6 +9,7 @@ edition = "2021"
 askama = "0.12.0"
 axum = "0.6.20"
 axum-extra = { version = "0.8.0", features = ["cookie"] }
+axum-macros = "0.3.8"
 dotenv = "0.15.0"
 hyper = { version = "0.14.27", features = ["full"] }
 libsql-client = "0.31.11"

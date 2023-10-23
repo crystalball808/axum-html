@@ -40,3 +40,22 @@ pub async fn check_email_exists(client: &Client, email: &str) -> Result<bool, Bo
 
     return Ok(response.rows.len() > 0);
 }
+
+pub async fn create_user(
+    client: &Client,
+    first_name: &str,
+    last_name: &str,
+    email: &str,
+    password: &str,
+) -> Result<impl Send, Box<dyn Error + Send>> {
+    let statement = Statement::with_args(
+        "INSERT INTO users (first_name, last_name, email, password)
+VALUES ('John', 'Doe', 'john.doe@example.com', 'password123');",
+        &[first_name, last_name, email, password],
+    );
+
+    let _ = client.execute(statement).await?;
+
+    Ok(())
+}
+

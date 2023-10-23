@@ -7,6 +7,7 @@ use axum::{
     Form, Router,
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar};
+use axum_macros::debug_handler;
 use hyper::HeaderMap;
 use libsql_client::Client;
 use serde::Deserialize;
@@ -123,18 +124,37 @@ struct RegisterForm {
     last_name: String,
     password: String,
 }
+
+#[debug_handler]
 async fn register(
     State(state): State<AppState>,
     Form(register_form): Form<RegisterForm>,
 ) -> Response {
     let db_client = Arc::clone(&state.db_client);
-    dbg!(&register_form);
-    let email_exists = db::check_email_exists(&db_client, &register_form.email).await;
+    let email_exists_result = db::check_email_exists(&db_client, &register_form.email).await;
 
-    if email_exists {
-        return StatusCode::BAD_REQUEST.into_response();
+    if let Ok(email_exists) = email_exists_result {
+        if email_exists {
+            return (StatusCode::BAD_REQUEST).into_response();
+        } else {
+            // Something is wrong with this request...
+            let result = db::create_user(
+                &db_client,
+                &register_form.first_name,
+                &register_form.last_name,
+                &register_form.email,
+                &register_form.password,
+            )
+            .await;
+
+            if let Ok(_) = result {
+                return (Redirect::to("/login")).into_response();
+            } else {
+                return (StatusCode::INTERNAL_SERVER_ERROR).into_response();
+            }
+        }
     } else {
-        todo!();
+        return (StatusCode::INTERNAL_SERVER_ERROR).into_response();
     }
 }
 
