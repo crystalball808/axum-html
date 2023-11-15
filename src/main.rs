@@ -4,13 +4,12 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, get_service, post},
-    Form, Router,
+    Extension, Form, Router,
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar};
-use axum_macros::debug_handler;
 use hyper::HeaderMap;
-use libsql_client::Client;
 use serde::Deserialize;
+use sqlx::SqlitePool;
 use std::{
     fs,
     sync::{Arc, Mutex},
@@ -19,37 +18,22 @@ use tokio::signal;
 use tower_http::services::ServeFile;
 use uuid::Uuid;
 mod routes;
-use dotenv::dotenv;
 use routes::todos::{get_todos, Todo};
+use anyhow::Result;
 
 #[derive(Clone)]
 pub struct AppState {
     todos: Arc<Mutex<Vec<Todo>>>,
-    db_client: Arc<Client>,
 }
 
 mod db;
 
 #[tokio::main]
-async fn main() {
-    dotenv().ok();
+async fn main() -> Result<()> {
+    dotenv::dotenv().ok();
 
-    let db_client = match db::setup().await {
-        Ok(client) => client,
-        Err(error) => {
-            println!("DB client setup failed\nError: {}", error);
-            std::process::exit(1);
-        }
-    };
+    let connection_pool = db::init().await?;
 
-    let state = AppState {
-        todos: Arc::new(Mutex::new(vec![Todo {
-            id: Uuid::new_v4().to_string(),
-            label: "Make a super app".to_owned(),
-            completed: false,
-        }])),
-        db_client: Arc::new(db_client),
-    };
     let app = Router::new()
         .route("/", get(index))
         .route("/login", get(login_page))
@@ -63,18 +47,20 @@ async fn main() {
             "/static/styles.css",
             get_service(ServeFile::new("static/tailwind-generated.css")),
         )
-        .with_state(state);
+        .layer(Extension(connection_pool));
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
         .with_graceful_shutdown(shutdown_signal())
         .await
         .unwrap();
+
+    Ok(())
 }
 
 async fn index(jar: CookieJar, state: State<AppState>) -> Response {
     if let Some(session_id) = jar.get("sesstion_id") {
-        let session_id: u32 = session_id.to_string().parse().unwrap();
+        let session_id: i32 = session_id.to_string().parse().unwrap();
         if db::check_session_id(session_id) {
             let todos = state.todos.lock().expect("Failed to lock the state");
             let template = IndexTemplate {
@@ -104,12 +90,11 @@ struct LoginForm {
     password: String,
 }
 async fn login(
-    State(state): State<AppState>,
+    Extension(connection_pool): Extension<SqlitePool>,
     Form(login_form): Form<LoginForm>,
 ) -> impl IntoResponse {
-    let db_client = Arc::clone(&state.db_client);
     let user_id =
-        db::get_user_id_from_login(&db_client, &login_form.email, &login_form.password).await;
+        db::get_user_id_from_login(&connection_pool, &login_form.email, &login_form.password).await;
 
     match user_id {
         Some(user_id) => {}
@@ -125,29 +110,26 @@ struct RegisterForm {
     password: String,
 }
 
-#[debug_handler]
 async fn register(
-    State(state): State<AppState>,
+    Extension(db_client): Extension<Arc<Client>>,
     Form(register_form): Form<RegisterForm>,
 ) -> Response {
-    let db_client = Arc::clone(&state.db_client);
     let email_exists_result = db::check_email_exists(&db_client, &register_form.email).await;
 
     if let Ok(email_exists) = email_exists_result {
         if email_exists {
             return (StatusCode::BAD_REQUEST).into_response();
         } else {
-            // Something is wrong with this request...
-            let result = db::create_user(
+            if db::create_user(
                 &db_client,
                 &register_form.first_name,
                 &register_form.last_name,
                 &register_form.email,
                 &register_form.password,
             )
-            .await;
-
-            if let Ok(_) = result {
+            .await
+            .is_ok()
+            {
                 return (Redirect::to("/login")).into_response();
             } else {
                 return (StatusCode::INTERNAL_SERVER_ERROR).into_response();
