@@ -1,8 +1,5 @@
 use askama::Template;
-use axum::{
-    extract::State,
-    response::{Html, IntoResponse},
-};
+use axum::{extract::State, response::{IntoResponse, Html}};
 
 use crate::AppState;
 

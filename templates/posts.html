@@ -1,0 +1,5 @@
+<ul hx-get"/posts" hx-trigger"postCreated from:body" hx-swap="outerHTML">
+  {% for post in posts %}
+    <li>{{ post.body|e }}</li>
+  {% endfor %}
+</ul>

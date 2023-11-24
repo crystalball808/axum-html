@@ -5,18 +5,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="static/styles.css" />
-  <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.9"
+    integrity="sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX"
+    crossorigin="anonymous"></script>
   <title>Document</title>
 </head>
 
 <body>
   <div class="p-8">
-    <form hx-post="/todos" hx-swap="none">
-      <input type="text" name="todo" id="todo" placeholder="Insert a todo" />
+    <form hx-post="/posts" hx-swap="none">
+      <input type="text" name="todo" id="todo" placeholder="Insert a post body" />
       <button type="submit">Create</button>
     </form>
-    <h1>Todos</h1>
-    {% include "todos.html" %}
+    <h1>Posts</h1>
+    {% include "posts.html" %}
   </div>
 </body>
 

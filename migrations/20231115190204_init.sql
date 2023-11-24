@@ -1,7 +1,8 @@
 CREATE TABLE users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT,
   name TEXT,
-  password TEXT,
+  password TEXT
 );
 
 CREATE TABLE sessions (
@@ -10,8 +11,8 @@ CREATE TABLE sessions (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
-INSERT INTO users (name) VALUES ('Tempo');
-INSERT INTO users (name) VALUES ('Solomon');
+INSERT INTO users (email, name, password) VALUES ('tempo@tempo.com', 'Tempo', 'qwe');
+INSERT INTO users (email, name, password) VALUES ('solomon@tempo.com', 'Solomon', 'asd');
 
 CREATE TABLE posts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

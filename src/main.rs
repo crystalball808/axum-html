@@ -1,30 +1,18 @@
+use anyhow::Result;
 use askama::Template;
 use axum::{
-    extract::State,
     http::StatusCode,
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, get_service, post},
     Extension, Form, Router,
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar};
-use hyper::HeaderMap;
+use db::Post;
 use serde::Deserialize;
 use sqlx::SqlitePool;
-use std::{
-    fs,
-    sync::{Arc, Mutex},
-};
+use std::fs;
 use tokio::signal;
 use tower_http::services::ServeFile;
-use uuid::Uuid;
-mod routes;
-use routes::todos::{get_todos, Todo};
-use anyhow::Result;
-
-#[derive(Clone)]
-pub struct AppState {
-    todos: Arc<Mutex<Vec<Todo>>>,
-}
 
 mod db;
 
@@ -41,8 +29,6 @@ async fn main() -> Result<()> {
         .route("/login-form", get(login_form))
         .route("/register", post(register))
         .route("/register-form", get(register_form))
-        .route("/todos", get(get_todos))
-        .route("/todos", post(create_todo))
         .route(
             "/static/styles.css",
             get_service(ServeFile::new("static/tailwind-generated.css")),
@@ -58,15 +44,26 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn index(jar: CookieJar, state: State<AppState>) -> Response {
-    if let Some(session_id) = jar.get("sesstion_id") {
-        let session_id: i32 = session_id.to_string().parse().unwrap();
-        if db::check_session_id(session_id) {
-            let todos = state.todos.lock().expect("Failed to lock the state");
-            let template = IndexTemplate {
-                todos: todos.to_vec(),
-            };
-            return Html(template.to_string()).into_response();
+#[derive(Template)]
+#[template(path = "index.html")]
+struct IndexTemplate {
+    posts: Vec<Post>,
+}
+
+async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>) -> Response {
+    if let Some(session_id) = jar.get("session_id") {
+        let session_id: i32 = session_id.to_string().parse::<i32>().unwrap();
+        if let Ok(present) = db::check_session_id(&connection_pool, session_id).await {
+            if !present {
+                return Redirect::permanent("/login").into_response();
+            }
+
+            if let Ok(posts) = db::get_posts(&connection_pool).await {
+                let template = IndexTemplate { posts };
+                return Html(template.to_string()).into_response();
+            }
+        } else {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     }
 
@@ -89,42 +86,50 @@ struct LoginForm {
     email: String,
     password: String,
 }
+
 async fn login(
     Extension(connection_pool): Extension<SqlitePool>,
+    jar: CookieJar,
     Form(login_form): Form<LoginForm>,
 ) -> impl IntoResponse {
     let user_id =
         db::get_user_id_from_login(&connection_pool, &login_form.email, &login_form.password).await;
 
-    match user_id {
-        Some(user_id) => {}
-        None => {}
+    if let Ok(user_id) = user_id {
+        if let Some(user_id) = user_id {
+            if let Ok(session_id) = db::create_session(&connection_pool, user_id).await {
+                return (
+                    jar.add(Cookie::new("session_id", session_id.to_string())),
+                    Redirect::permanent("/"),
+                )
+                    .into_response();
+            }
+        }
     }
+    StatusCode::INTERNAL_SERVER_ERROR.into_response()
 }
 
 #[derive(Deserialize, Debug)]
 struct RegisterForm {
+    name: String,
     email: String,
-    first_name: String,
-    last_name: String,
     password: String,
 }
 
 async fn register(
-    Extension(db_client): Extension<Arc<Client>>,
+    Extension(connection_pool): Extension<SqlitePool>,
     Form(register_form): Form<RegisterForm>,
 ) -> Response {
-    let email_exists_result = db::check_email_exists(&db_client, &register_form.email).await;
+    let email_exists_result = db::check_email_exists(&connection_pool, &register_form.email).await;
 
     if let Ok(email_exists) = email_exists_result {
         if email_exists {
             return (StatusCode::BAD_REQUEST).into_response();
         } else {
             if db::create_user(
-                &db_client,
-                &register_form.first_name,
-                &register_form.last_name,
+                &connection_pool,
                 &register_form.email,
+                &register_form.name,
                 &register_form.password,
             )
             .await
@@ -140,33 +145,24 @@ async fn register(
     }
 }
 
-#[derive(Deserialize)]
-struct TodoForm {
-    todo: String,
-}
+// #[derive(Deserialize)]
+// struct TodoForm {
+//     todo: String,
+// }
 
-async fn create_todo(
-    State(state): State<AppState>,
-    Form(todo_form): Form<TodoForm>,
-) -> impl IntoResponse {
-    println!("New todo: {}", todo_form.todo);
-    let new_todo = Todo {
-        id: Uuid::new_v4().to_string(),
-        label: todo_form.todo,
-        completed: false,
-    };
-
-    let mut todos = state
-        .todos
-        .lock()
-        .expect("Create todo: failed to lock todos");
-    todos.push(new_todo);
-
-    let mut headers = HeaderMap::new();
-    headers.insert("HX-Trigger", "todoCreated".parse().unwrap());
-
-    (headers, StatusCode::CREATED)
-}
+// async fn create_todo(Form(todo_form): Form<TodoForm>) -> impl IntoResponse {
+//     println!("New todo: {}", todo_form.todo);
+//     let new_todo = Todo {
+//         id: Uuid::new_v4().to_string(),
+//         label: todo_form.todo,
+//         completed: false,
+//     };
+//
+//     let mut headers = HeaderMap::new();
+//     headers.insert("HX-Trigger", "todoCreated".parse().unwrap());
+//
+//     (headers, StatusCode::CREATED)
+// }
 
 #[derive(Template)]
 #[template(path = "hello.html")]
@@ -174,11 +170,6 @@ struct HelloTemplate {
     name: String,
 }
 
-#[derive(Template)]
-#[template(path = "index.html")]
-struct IndexTemplate {
-    todos: Vec<Todo>,
-}
 #[derive(Template)]
 #[template(path = "login.html")]
 struct LoginPageTemplate {}
