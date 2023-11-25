@@ -11,7 +11,6 @@ pub struct User {
 
 #[derive(FromRow, Debug)]
 pub struct Session {
-    id: i32,
     user_id: i32,
 }
 
@@ -24,9 +23,7 @@ pub struct Post {
 
 pub async fn init() -> Result<SqlitePool> {
     let database_url = std::env::var("DATABASE_URL")?;
-    dbg!(&database_url);
     let connection_pool = SqlitePool::connect(&database_url).await?;
-    dbg!(&connection_pool);
 
     sqlx::migrate!().run(&connection_pool).await?;
 
@@ -42,12 +39,16 @@ pub async fn check_session_id(connection_pool: &SqlitePool, session_id: i32) -> 
     return Ok(result.is_some());
 }
 
+#[derive(FromRow, Debug)]
+pub struct UserId {
+    pub id: i32,
+}
 pub async fn get_user_id_from_login(
     connection_pool: &SqlitePool,
     email: &str,
     password: &str,
 ) -> Result<Option<i32>> {
-    let result = sqlx::query_as::<_, User>("SELECT id FROM users WHERE email=$1 AND password=$2")
+    let result = sqlx::query_as::<_, UserId>("SELECT id FROM users WHERE email=$1 AND password=$2")
         .bind(email)
         .bind(password)
         .fetch_optional(connection_pool)

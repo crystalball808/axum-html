@@ -51,23 +51,29 @@ struct IndexTemplate {
 }
 
 async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>) -> Response {
+    println!("index get handler");
     if let Some(session_id) = jar.get("session_id") {
-        let session_id: i32 = session_id.to_string().parse::<i32>().unwrap();
-        if let Ok(present) = db::check_session_id(&connection_pool, session_id).await {
-            if !present {
-                return Redirect::permanent("/login").into_response();
-            }
+        let session_id: i32 = session_id.value().parse::<i32>().unwrap();
 
-            if let Ok(posts) = db::get_posts(&connection_pool).await {
-                let template = IndexTemplate { posts };
-                return Html(template.to_string()).into_response();
+        match db::check_session_id(&connection_pool, session_id).await {
+            Ok(present) => {
+                if !present {
+                    return Redirect::temporary("/login").into_response();
+                }
+
+                if let Ok(posts) = db::get_posts(&connection_pool).await {
+                    let template = IndexTemplate { posts };
+                    return Html(template.to_string()).into_response();
+                }
             }
-        } else {
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            Err(error) => {
+                println!("{error}");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
         }
     }
 
-    return Redirect::permanent("/login").into_response();
+    return Redirect::temporary("/login").into_response();
 }
 
 async fn login_page() -> Response {
@@ -95,15 +101,22 @@ async fn login(
     let user_id =
         db::get_user_id_from_login(&connection_pool, &login_form.email, &login_form.password).await;
 
-    if let Ok(user_id) = user_id {
-        if let Some(user_id) = user_id {
-            if let Ok(session_id) = db::create_session(&connection_pool, user_id).await {
-                return (
-                    jar.add(Cookie::new("session_id", session_id.to_string())),
-                    Redirect::permanent("/"),
-                )
-                    .into_response();
+    match user_id {
+        Ok(user_id) => {
+            if let Some(user_id) = user_id {
+                dbg!(user_id);
+                if let Ok(session_id) = db::create_session(&connection_pool, user_id).await {
+                    dbg!(session_id);
+                    return (
+                        jar.add(Cookie::new("session_id", session_id.to_string())),
+                        Redirect::temporary("/"),
+                    )
+                        .into_response();
+                }
             }
+        }
+        Err(error) => {
+            println!("{error}");
         }
     }
     StatusCode::INTERNAL_SERVER_ERROR.into_response()
