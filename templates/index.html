@@ -12,6 +12,13 @@
 </head>
 
 <body>
+  <header>
+    {% if user_name.is_some() -%}
+    <p>{{ user_name.unwrap() }}</p>
+    {%- else -%}
+    {% include "login-form.html" %}
+    {%- endif %}
+  </header>
   <div class="p-8">
     <form hx-post="/posts" hx-swap="none">
       <input type="text" name="todo" id="todo" placeholder="Insert a post body" />

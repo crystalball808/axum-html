@@ -11,7 +11,6 @@ use db::Post;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use std::fs;
-use tokio::signal;
 use tower_http::services::ServeFile;
 
 mod db;
@@ -35,45 +34,55 @@ async fn main() -> Result<()> {
         )
         .layer(Extension(connection_pool));
 
-    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
-        .serve(app.into_make_service())
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 
     Ok(())
 }
 
 #[derive(Template)]
 #[template(path = "index.html")]
-struct IndexTemplate {
+struct IndexTemplate<'a> {
+    user_name: Option<&'a str>,
     posts: Vec<Post>,
 }
 
 async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>) -> Response {
-    println!("index get handler");
-    if let Some(session_id) = jar.get("session_id") {
-        let session_id: i32 = session_id.value().parse::<i32>().unwrap();
-
-        match db::check_session_id(&connection_pool, session_id).await {
-            Ok(present) => {
-                if !present {
-                    return Redirect::temporary("/login").into_response();
+    let user_name: Option<String> = match jar.get("session_id") {
+        Some(session_id) => {
+            let session_id: i32 = match session_id.value().parse() {
+                Ok(session_id) => session_id,
+                Err(error) => {
+                    dbg!(error);
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
                 }
+            };
 
-                if let Ok(posts) = db::get_posts(&connection_pool).await {
-                    let template = IndexTemplate { posts };
-                    return Html(template.to_string()).into_response();
+            match db::get_user_name_from_session_id(&connection_pool, session_id).await {
+                Ok(user_name) => user_name,
+                Err(error) => {
+                    dbg!(error);
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
                 }
-            }
-            Err(error) => {
-                println!("{error}");
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
         }
-    }
+        None => None,
+    };
 
-    return Redirect::temporary("/login").into_response();
+    let posts = match db::get_posts(&connection_pool).await {
+        Ok(posts) => posts,
+        Err(error) => {
+            dbg!(error);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    let template = IndexTemplate {
+        user_name: user_name.as_deref(),
+        posts,
+    };
+
+    Html(template.to_string()).into_response()
 }
 
 async fn login_page() -> Response {
@@ -107,10 +116,7 @@ async fn login(
                 dbg!(user_id);
                 if let Ok(session_id) = db::create_session(&connection_pool, user_id).await {
                     dbg!(session_id);
-                    return (
-                        jar.add(Cookie::new("session_id", session_id.to_string())),
-                        Redirect::temporary("/"),
-                    )
+                    return (jar.add(Cookie::new("session_id", session_id.to_string())),)
                         .into_response();
                 }
             }
@@ -203,30 +209,4 @@ where
                 .into_response(),
         }
     }
-}
-
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
-
-    println!("signal received, starting graceful shutdown");
 }
