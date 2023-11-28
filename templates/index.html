@@ -12,7 +12,7 @@
 </head>
 
 <body>
-  <header>
+  <header class="bg-gradient-to-b from-blue-600 to-sky-600 shadow-md">
     {% if user_name.is_some() -%}
     <p>{{ user_name.unwrap() }}</p>
     {%- else -%}
@@ -20,10 +20,12 @@
     {%- endif %}
   </header>
   <div class="p-8">
+    {% if user_name.is_some() -%}
     <form hx-post="/posts" hx-swap="none">
       <input type="text" name="todo" id="todo" placeholder="Insert a post body" />
       <button type="submit">Create</button>
     </form>
+    {%- endif %}
     <h1>Posts</h1>
     {% include "posts.html" %}
   </div>

@@ -8,22 +8,25 @@ use axum::{
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar};
 use db::Post;
+use hyper::HeaderMap;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use std::fs;
 use tower_http::services::ServeFile;
 
 mod db;
+mod utils;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let generate_styles_output = utils::generate_styles();
+    println!("Generate styles output:{generate_styles_output}");
     dotenv::dotenv().ok();
 
     let connection_pool = db::init().await?;
 
     let app = Router::new()
         .route("/", get(index))
-        .route("/login", get(login_page))
         .route("/login", post(login))
         .route("/login-form", get(login_form))
         .route("/register", post(register))
@@ -85,10 +88,6 @@ async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>
     Html(template.to_string()).into_response()
 }
 
-async fn login_page() -> Response {
-    let template = LoginPageTemplate {};
-    return Html(template.to_string()).into_response();
-}
 async fn login_form() -> Response {
     return Html(fs::read_to_string("templates/login-form.html").unwrap()).into_response();
 }
@@ -115,8 +114,12 @@ async fn login(
             if let Some(user_id) = user_id {
                 dbg!(user_id);
                 if let Ok(session_id) = db::create_session(&connection_pool, user_id).await {
-                    dbg!(session_id);
-                    return (jar.add(Cookie::new("session_id", session_id.to_string())),)
+                    let mut headers = HeaderMap::new();
+                    headers.insert("HX-Refresh", "true".parse().unwrap());
+                    return (
+                        jar.add(Cookie::new("session_id", session_id.to_string())),
+                        headers,
+                    )
                         .into_response();
                 }
             }
@@ -187,26 +190,4 @@ async fn register(
 #[template(path = "hello.html")]
 struct HelloTemplate {
     name: String,
-}
-
-#[derive(Template)]
-#[template(path = "login.html")]
-struct LoginPageTemplate {}
-
-struct HtmlTemplate<T>(T);
-
-impl<T> IntoResponse for HtmlTemplate<T>
-where
-    T: Template,
-{
-    fn into_response(self) -> Response {
-        match self.0.render() {
-            Ok(html) => Html(html).into_response(),
-            Err(err) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to render template. Error: {}", err),
-            )
-                .into_response(),
-        }
-    }
 }

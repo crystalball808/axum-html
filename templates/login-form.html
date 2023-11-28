@@ -1,4 +1,4 @@
-<div id="login-form">
+<div id="login-form" class="flex p-2">
   <label for="login-form">Login</label>
   <form hx-post="/login" hx-swap="none">
     <label for="email">Email</label>
@@ -7,7 +7,7 @@
     <input type="password" id="password" name="password" />
     <button type="submit">Login</button>
   </form>
-  <button hx-get="/register-form" hx-target="#login-form" hx-swap="outerHTML">
+  <a href="/register-form">
     Go to register
-  </button>
+  </a>
 </div>
