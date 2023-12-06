@@ -31,6 +31,8 @@ async fn main() -> Result<()> {
         .route("/login-form", get(login_form))
         .route("/register", post(register))
         .route("/register-form", get(register_form))
+        .route("posts", get(get_posts))
+        .route("posts", set(create_post))
         .route(
             "/static/styles.css",
             get_service(ServeFile::new("static/tailwind-generated.css")),
@@ -61,8 +63,11 @@ async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>
                 }
             };
 
-            match db::get_user_name_from_session_id(&connection_pool, session_id).await {
-                Ok(user_name) => user_name,
+            match db::get_user_from_session(&connection_pool, session_id).await {
+                Ok(user) => match user {
+                    Some(user) => Some(user.name),
+                    None => None,
+                },
                 Err(error) => {
                     dbg!(error);
                     return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -85,7 +90,14 @@ async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>
         posts,
     };
 
-    Html(template.to_string()).into_response()
+    let html_response = template.to_string();
+
+    if user_name.is_some() {
+        Html(html_response).into_response()
+    } else {
+        (jar.remove("session_id"), Html(html_response)).into_response()
+    }
+
 }
 
 async fn login_form() -> Response {
@@ -93,6 +105,71 @@ async fn login_form() -> Response {
 }
 async fn register_form() -> Response {
     return Html(fs::read_to_string("templates/register-form.html").unwrap()).into_response();
+}
+
+#[derive(Template)]
+#[template(path = "posts.html")]
+struct PostsTemplate {
+    posts: Vec<Post>,
+}
+async fn get_posts(Extension(connection_pool): Extension<SqlitePool>) -> Response {
+    let posts = match db::get_posts(&connection_pool).await {
+        Ok(posts) => posts,
+        Err(error) => {
+            println!("{error}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let template = PostsTemplate { posts };
+
+    Html(template.to_string()).into_response()
+}
+
+#[derive(Deserialize)]
+struct PostForm {
+    body: String,
+}
+async fn create_post(
+    jar: CookieJar,
+    Extension(connection_pool): Extension<SqlitePool>,
+    Form(post_form): Form<PostForm>,
+) -> Response {
+    let user_id: i32 = match jar.get("session_id") {
+        Some(session_id) => {
+            let session_id: i32 = match session_id.value().parse() {
+                Ok(session_id) => session_id,
+                Err(error) => {
+                    dbg!(error);
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                }
+            };
+
+            match db::get_user_from_session(&connection_pool, session_id).await {
+                Ok(user) => match user {
+                    Some(user) => user.id,
+                    None => {
+                        return (
+                            jar.remove("session_id"),
+                            StatusCode::NETWORK_AUTHENTICATION_REQUIRED,
+                        )
+                            .into_response();
+                    }
+                },
+                Err(error) => {
+                    dbg!(error);
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                }
+            }
+        }
+        None => {
+            return StatusCode::NETWORK_AUTHENTICATION_REQUIRED.into_response();
+        }
+    };
+
+    let mut headers = HeaderMap::new();
+    headers.insert("HX-Trigger", "postCreated".parse().unwrap());
+
+    (headers, StatusCode::CREATED).into_response()
 }
 
 #[derive(Deserialize)]

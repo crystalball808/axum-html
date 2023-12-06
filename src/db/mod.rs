@@ -3,10 +3,9 @@ use sqlx::{FromRow, Row, SqlitePool};
 
 #[derive(FromRow, Debug)]
 pub struct User {
-    id: i32,
-    email: String,
-    name: String,
-    password: String,
+    pub id: i32,
+    pub email: String,
+    pub name: String,
 }
 
 #[derive(FromRow, Debug)]
@@ -39,25 +38,14 @@ pub async fn check_session_id(connection_pool: &SqlitePool, session_id: i32) -> 
     return Ok(result.is_some());
 }
 
-#[derive(FromRow, Debug)]
-struct UserName {
-    name: String,
-}
-pub async fn get_user_name_from_session_id(
+pub async fn get_user_from_session(
     connection_pool: &SqlitePool,
     session_id: i32,
-) -> Result<Option<String>> {
-    let result = sqlx::query_as::<_, UserName>(
-        "select u.name from users u join sessions s on u.id = s.user_id where s.id = $1",
-    )
-    .bind(session_id)
-    .fetch_optional(connection_pool)
-    .await?;
-
-    match result {
-        Some(user) => Ok(Some(user.name)),
-        None => Ok(None),
-    }
+) -> Result<Option<User>> {
+    Ok(sqlx::query_as::<_, User>(
+            "select u.id, u.name, u.email from users u join sessions s on u.id = s.user_id where s.id = $1"
+        )
+    .bind(session_id).fetch_optional(connection_pool).await?)
 }
 
 #[derive(FromRow, Debug)]
@@ -120,5 +108,16 @@ pub async fn get_posts(connection_pool: &SqlitePool) -> Result<Vec<Post>> {
         sqlx::query_as::<_, Post>("SELECT id, body, author_id FROM posts")
             .fetch_all(connection_pool)
             .await?,
+    )
+}
+
+pub async fn create_post(connection_pool: &SqlitePool, author_id: u32, body: &str) -> Result<i32> {
+    Ok(
+        sqlx::query("insert into posts (author_id, body) values ($1, $2) returning id")
+            .bind(author_id)
+            .bind(body)
+            .fetch_one(connection_pool)
+            .await?
+            .get(0),
     )
 }
