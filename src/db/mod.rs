@@ -111,7 +111,7 @@ pub async fn get_posts(connection_pool: &SqlitePool) -> Result<Vec<Post>> {
     )
 }
 
-pub async fn create_post(connection_pool: &SqlitePool, author_id: u32, body: &str) -> Result<i32> {
+pub async fn create_post(connection_pool: &SqlitePool, author_id: i32, body: &str) -> Result<i32> {
     Ok(
         sqlx::query("insert into posts (author_id, body) values ($1, $2) returning id")
             .bind(author_id)

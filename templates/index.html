@@ -22,7 +22,7 @@
   <div class="p-8">
     {% if user_name.is_some() -%}
     <form hx-post="/posts" hx-swap="none">
-      <input type="text" name="todo" id="todo" placeholder="Insert a post body" />
+      <input type="text" name="body" placeholder="Insert a post body" />
       <button type="submit">Create</button>
     </form>
     {%- endif %}

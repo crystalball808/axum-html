@@ -31,8 +31,8 @@ async fn main() -> Result<()> {
         .route("/login-form", get(login_form))
         .route("/register", post(register))
         .route("/register-form", get(register_form))
-        .route("posts", get(get_posts))
-        .route("posts", set(create_post))
+        .route("/posts", get(get_posts))
+        .route("/posts", post(create_post))
         .route(
             "/static/styles.css",
             get_service(ServeFile::new("static/tailwind-generated.css")),
@@ -97,7 +97,6 @@ async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>
     } else {
         (jar.remove("session_id"), Html(html_response)).into_response()
     }
-
 }
 
 async fn login_form() -> Response {
@@ -166,10 +165,19 @@ async fn create_post(
         }
     };
 
-    let mut headers = HeaderMap::new();
-    headers.insert("HX-Trigger", "postCreated".parse().unwrap());
+    match db::create_post(&connection_pool, user_id, &post_form.body).await {
+        Ok(_) => {
+            println!("Created a post: {}", post_form.body);
+            let mut headers = HeaderMap::new();
+            headers.insert("HX-Trigger", "postCreated".parse().unwrap());
 
-    (headers, StatusCode::CREATED).into_response()
+            return (headers, StatusCode::CREATED).into_response();
+        }
+        Err(error) => {
+            println!("{error}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    }
 }
 
 #[derive(Deserialize)]
