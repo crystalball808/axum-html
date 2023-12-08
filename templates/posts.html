@@ -1,5 +1,8 @@
-<ul hx-get="/posts" hx-trigger="postCreated from:body" hx-swap="outerHTML">
+<ul hx-get="/posts" hx-trigger="postCreated from:body" class="flex flex-col gap-2 w-80" hx-swap="outerHTML">
   {% for post in posts %}
-    <li>{{ post.body|e }}</li>
+  <li class="p-2 rounded bg-cyan-700">
+    <p>{{ post.author|e }}</p>
+    <p>{{ post.body|e }}</p>
+  </li>
   {% endfor %}
 </ul>

@@ -17,7 +17,7 @@ pub struct Session {
 pub struct Post {
     pub id: i32,
     pub body: String,
-    pub author_id: i32,
+    pub author: String,
 }
 
 pub async fn init() -> Result<SqlitePool> {
@@ -105,7 +105,7 @@ pub async fn create_session(connection_pool: &SqlitePool, user_id: i32) -> Resul
 
 pub async fn get_posts(connection_pool: &SqlitePool) -> Result<Vec<Post>> {
     Ok(
-        sqlx::query_as::<_, Post>("SELECT id, body, author_id FROM posts")
+        sqlx::query_as::<_, Post>("SELECT p.id, p.body, u.name as author FROM posts p join users u on u.id = p.author_id")
             .fetch_all(connection_pool)
             .await?,
     )

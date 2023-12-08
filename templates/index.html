@@ -11,8 +11,8 @@
   <title>Document</title>
 </head>
 
-<body>
-  <header class="bg-gradient-to-b from-blue-600 to-sky-600 shadow-md">
+<body class="dark:bg-cyan-950 dark:text-white">
+  <header class="bg-gradient-to-b from-sky-800 to-cyan-600 shadow-md dark:shadow-cyan-400">
     {% if user_name.is_some() -%}
     <p>{{ user_name.unwrap() }}</p>
     {%- else -%}
@@ -21,8 +21,8 @@
   </header>
   <div class="p-8">
     {% if user_name.is_some() -%}
-    <form hx-post="/posts" hx-swap="none">
-      <input type="text" name="body" placeholder="Insert a post body" />
+    <form hx-post="/posts" hx-swap="none" hx-on::after-request="this.reset()">
+      <input type="text" name="body" class="text-black" placeholder="Insert a post body" />
       <button type="submit">Create</button>
     </form>
     {%- endif %}
