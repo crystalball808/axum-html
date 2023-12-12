@@ -10,15 +10,8 @@
     crossorigin="anonymous"></script>
   <title>Document</title>
 </head>
-
-<body class="dark:bg-cyan-950 dark:text-white">
-  <header class="bg-gradient-to-b from-sky-800 to-cyan-600 shadow-md dark:shadow-cyan-400">
-    {% if user_name.is_some() -%}
-    <p>{{ user_name.unwrap() }}</p>
-    {%- else -%}
-    {% include "login-form.html" %}
-    {%- endif %}
-  </header>
+<body hx-boost="true" class="dark:bg-cyan-950 dark:text-white">
+  {% include "header.html" %}
   <div class="p-8">
     {% if user_name.is_some() -%}
     <form hx-post="/posts" hx-swap="none" hx-on::after-request="this.reset()">

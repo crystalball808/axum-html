@@ -102,8 +102,14 @@ async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>
 async fn login_form() -> Response {
     return Html(fs::read_to_string("templates/login-form.html").unwrap()).into_response();
 }
+#[derive(Template)]
+#[template(path = "register-form.html")]
+struct RegisterFormTemplate<'a> {
+    user_name: Option<&'a str>
+}
 async fn register_form() -> Response {
-    return Html(fs::read_to_string("templates/register-form.html").unwrap()).into_response();
+    let template = RegisterFormTemplate { user_name: Some("")};
+    return Html(template.to_string()).into_response();
 }
 
 #[derive(Template)]

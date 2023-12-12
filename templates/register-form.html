@@ -1,17 +1,35 @@
-<div id="register-form">
-  <label for="register-form">Register</label>
-  <form hx-post="/register" hx-swap="none" class="flex flex-col bg-zinc-200 rounded p-2">
-    <label for="email">Email</label>
-    <input id="email" name="email" type="email" />
-    <label for="first-name">First name</label>
-    <input id="first-name" name="first_name" type="text" />
-    <label for="last-name">Last name</label>
-    <input id="last-name" name="last_name" type="text" />
-    <label for="password">Password</label>
-    <input type="password" id="password" name="password" />
-    <button type="submit">Register</button>
-  </form>
-  <button hx-get="/login-form" hx-target="#register-form" hx-swap="outerHTML">
-    Go to login
-  </button>
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="static/styles.css" />
+  <script src="https://unpkg.com/htmx.org@1.9.9"
+    integrity="sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX"
+    crossorigin="anonymous"></script>
+  <title>Document</title>
+</head>
+
+<body class="dark:bg-cyan-950 dark:text-white">
+  {% include "header.html" %}
+  <div id="register-form">
+    <label for="register-form">Register</label>
+    <form hx-post="/register" hx-swap="none" class="flex flex-col bg-zinc-200 rounded p-2">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" />
+      <label for="first-name">First name</label>
+      <input id="first-name" name="first_name" type="text" />
+      <label for="last-name">Last name</label>
+      <input id="last-name" name="last_name" type="text" />
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" />
+      <button type="submit">Register</button>
+    </form>
+    <button hx-get="/login-form" hx-target="#register-form" hx-swap="outerHTML">
+      Go to login
+    </button>
+</body>
+
+</html>
 </div>

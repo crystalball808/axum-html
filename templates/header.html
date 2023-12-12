@@ -1,0 +1,7 @@
+<header class="h-12 bg-gradient-to-b from-sky-800 to-cyan-600 shadow-md dark:shadow-cyan-400">
+  {% if user_name.is_some() -%}
+  <p>{{ user_name.unwrap() }}</p>
+  {%- else -%}
+  {% include "login-form.html" %}
+  {%- endif %}
+</header>
