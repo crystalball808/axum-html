@@ -2,7 +2,7 @@ use anyhow::Result;
 use askama::Template;
 use axum::{
     http::StatusCode,
-    response::{Html, IntoResponse, Redirect, Response},
+    response::{Html, IntoResponse, Response},
     routing::{get, get_service, post},
     Extension, Form, Router,
 };
@@ -248,7 +248,9 @@ async fn register(
             .await
             .is_ok()
             {
-                return (Redirect::to("/login")).into_response();
+                let mut headers = HeaderMap::new();
+                headers.insert("HX-Redirect", "/".parse().unwrap());
+                return headers.into_response();
             } else {
                 return (StatusCode::INTERNAL_SERVER_ERROR).into_response();
             }
@@ -258,27 +260,3 @@ async fn register(
     }
 }
 
-// #[derive(Deserialize)]
-// struct TodoForm {
-//     todo: String,
-// }
-
-// async fn create_todo(Form(todo_form): Form<TodoForm>) -> impl IntoResponse {
-//     println!("New todo: {}", todo_form.todo);
-//     let new_todo = Todo {
-//         id: Uuid::new_v4().to_string(),
-//         label: todo_form.todo,
-//         completed: false,
-//     };
-//
-//     let mut headers = HeaderMap::new();
-//     headers.insert("HX-Trigger", "todoCreated".parse().unwrap());
-//
-//     (headers, StatusCode::CREATED)
-// }
-
-#[derive(Template)]
-#[template(path = "hello.html")]
-struct HelloTemplate {
-    name: String,
-}
