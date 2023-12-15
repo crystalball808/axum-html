@@ -7,7 +7,7 @@ use axum::{
     Extension, Form, Router,
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar};
-use db::Post;
+use db::posts::Post;
 use hyper::HeaderMap;
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -77,7 +77,7 @@ async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>
         None => None,
     };
 
-    let posts = match db::get_posts(&connection_pool).await {
+    let posts = match db::posts::get_posts(&connection_pool).await {
         Ok(posts) => posts,
         Err(error) => {
             dbg!(error);
@@ -118,7 +118,7 @@ struct PostsTemplate {
     posts: Vec<Post>,
 }
 async fn get_posts(Extension(connection_pool): Extension<SqlitePool>) -> Response {
-    let posts = match db::get_posts(&connection_pool).await {
+    let posts = match db::posts::get_posts(&connection_pool).await {
         Ok(posts) => posts,
         Err(error) => {
             println!("{error}");
@@ -171,7 +171,7 @@ async fn create_post(
         }
     };
 
-    match db::create_post(&connection_pool, user_id, &post_form.body).await {
+    match db::posts::create_post(&connection_pool, user_id, &post_form.body).await {
         Ok(_) => {
             println!("Created a post: {}", post_form.body);
             let mut headers = HeaderMap::new();
