@@ -3,6 +3,11 @@
   <li class="p-2 rounded bg-cyan-700">
     <p>{{ post.author|e }}</p>
     <p>{{ post.body|e }}</p>
+    {% if post.liked == true -%}
+    <button class="text-cyan-300">♥ {{ post.likes_count }}</button>
+    {%- else -%}
+    <button>♥ {{ post.likes_count }}</button>
+    {%- endif %}
   </li>
   {% endfor %}
 </ul>

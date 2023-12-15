@@ -6,14 +6,41 @@ pub struct Post {
     pub id: i32,
     pub body: String,
     pub author: String,
+    pub likes_count: i32,
+    pub liked: bool,
 }
 
-pub async fn get_posts(connection_pool: &SqlitePool) -> Result<Vec<Post>> {
-    Ok(
-        sqlx::query_as::<_, Post>("SELECT p.id, p.body, u.name as author FROM posts p join users u on u.id = p.author_id")
-            .fetch_all(connection_pool)
-            .await?,
-    )
+#[derive(FromRow, Debug)]
+pub struct Like {
+    pub id: i32,
+    pub user_id: i32,
+    pub post_id: i32,
+}
+
+pub async fn get_posts(connection_pool: &SqlitePool, user_id: Option<i32>) -> Result<Vec<Post>> {
+    let user_id = user_id.unwrap_or(0);
+
+    let query = "
+SELECT 
+    p.id, 
+    p.body, 
+    u.name AS author, 
+    COUNT(l.id) AS likes_count,
+    CASE WHEN SUM(l.user_id = $1) > 0 THEN 1 ELSE 0 END AS liked
+FROM 
+    posts p
+JOIN 
+    users u ON u.id = p.author_id
+LEFT JOIN 
+    likes l ON l.post_id = p.id
+GROUP BY 
+    p.id, p.body, u.name;
+";
+
+    Ok(sqlx::query_as::<_, Post>(query)
+        .bind(user_id)
+        .fetch_all(connection_pool)
+        .await?)
 }
 
 pub async fn create_post(connection_pool: &SqlitePool, author_id: i32, body: &str) -> Result<i32> {

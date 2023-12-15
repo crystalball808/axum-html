@@ -14,6 +14,8 @@ use sqlx::SqlitePool;
 use std::fs;
 use tower_http::services::ServeFile;
 
+use crate::db::User;
+
 mod db;
 mod utils;
 
@@ -53,7 +55,7 @@ struct IndexTemplate<'a> {
 }
 
 async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>) -> Response {
-    let user_name: Option<String> = match jar.get("session_id") {
+    let user: Option<User> = match jar.get("session_id") {
         Some(session_id) => {
             let session_id: i32 = match session_id.value().parse() {
                 Ok(session_id) => session_id,
@@ -64,10 +66,7 @@ async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>
             };
 
             match db::get_user_from_session(&connection_pool, session_id).await {
-                Ok(user) => match user {
-                    Some(user) => Some(user.name),
-                    None => None,
-                },
+                Ok(user) => user,
                 Err(error) => {
                     dbg!(error);
                     return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -77,14 +76,23 @@ async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>
         None => None,
     };
 
-    let posts = match db::posts::get_posts(&connection_pool).await {
+    let user_id = match &user {
+        Some(user) => Some(user.id),
+        None => None,
+    };
+    let posts = match db::posts::get_posts(&connection_pool, user_id).await {
         Ok(posts) => posts,
         Err(error) => {
             dbg!(error);
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
+    dbg!(&posts);
 
+    let user_name = match user {
+        Some(user) => Some(user.name),
+        None => None,
+    };
     let template = IndexTemplate {
         user_name: user_name.as_deref(),
         posts,
@@ -105,10 +113,12 @@ async fn login_form() -> Response {
 #[derive(Template)]
 #[template(path = "register-form.html")]
 struct RegisterFormTemplate<'a> {
-    user_name: Option<&'a str>
+    user_name: Option<&'a str>,
 }
 async fn register_form() -> Response {
-    let template = RegisterFormTemplate { user_name: Some("")};
+    let template = RegisterFormTemplate {
+        user_name: Some(""),
+    };
     return Html(template.to_string()).into_response();
 }
 
@@ -117,8 +127,33 @@ async fn register_form() -> Response {
 struct PostsTemplate {
     posts: Vec<Post>,
 }
-async fn get_posts(Extension(connection_pool): Extension<SqlitePool>) -> Response {
-    let posts = match db::posts::get_posts(&connection_pool).await {
+async fn get_posts(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>) -> Response {
+    let user: Option<User> = match jar.get("session_id") {
+        Some(session_id) => {
+            let session_id: i32 = match session_id.value().parse() {
+                Ok(session_id) => session_id,
+                Err(error) => {
+                    dbg!(error);
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                }
+            };
+
+            match db::get_user_from_session(&connection_pool, session_id).await {
+                Ok(user) => user,
+                Err(error) => {
+                    dbg!(error);
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                }
+            }
+        }
+        None => None,
+    };
+
+    let user_id = match user {
+        Some(user) => Some(user.id),
+        None => None
+    };
+    let posts = match db::posts::get_posts(&connection_pool, user_id).await {
         Ok(posts) => posts,
         Err(error) => {
             println!("{error}");
@@ -259,4 +294,3 @@ async fn register(
         return (StatusCode::INTERNAL_SERVER_ERROR).into_response();
     }
 }
-
