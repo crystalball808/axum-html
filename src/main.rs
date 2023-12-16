@@ -1,9 +1,10 @@
 use anyhow::Result;
 use askama::Template;
 use axum::{
+    extract::Path,
     http::StatusCode,
     response::{Html, IntoResponse, Response},
-    routing::{get, get_service, post},
+    routing::{delete, get, get_service, post},
     Extension, Form, Router,
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar};
@@ -18,6 +19,21 @@ use crate::db::User;
 
 mod db;
 mod utils;
+
+const SESSION_ID_COOKIE_KEY: &str = "session_id";
+fn get_session_id(jar: &CookieJar) -> Option<i32> {
+    let session_id_cookie = jar.get(SESSION_ID_COOKIE_KEY);
+
+    if let Some(session_id) = session_id_cookie {
+        let parsed_session_id = session_id.value().parse::<i32>();
+
+        if let Ok(session_id) = parsed_session_id {
+            return Some(session_id);
+        }
+    }
+
+    None
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -35,6 +51,8 @@ async fn main() -> Result<()> {
         .route("/register-form", get(register_form))
         .route("/posts", get(get_posts))
         .route("/posts", post(create_post))
+        .route("/likes/:post_id", post(like_post))
+        .route("/likes/:post_id", delete(unlike_post))
         .route(
             "/static/styles.css",
             get_service(ServeFile::new("static/tailwind-generated.css")),
@@ -48,6 +66,78 @@ async fn main() -> Result<()> {
 }
 
 #[derive(Template)]
+#[template(path = "like-button.html")]
+struct LikeButtonTemplate {
+    post: Post,
+}
+async fn like_post(
+    jar: CookieJar,
+    Path(post_id): Path<i32>,
+    Extension(connection_pool): Extension<SqlitePool>,
+) -> Response {
+    let session_id = get_session_id(&jar);
+    if session_id.is_none() {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let session_id = session_id.unwrap();
+
+    let user = match db::get_user_from_session(&connection_pool, session_id).await {
+        Ok(user) => user,
+        Err(error) => {
+            dbg!(error);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    if user.is_none() {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let user = user.unwrap();
+
+    match db::posts::like_post(&connection_pool, user.id, post_id).await {
+        Ok(post) => {
+            let like_button_template = LikeButtonTemplate { post };
+            Html(like_button_template.to_string()).into_response()
+        },
+        Err(error) => {
+            dbg!(&error);
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+async fn unlike_post(jar: CookieJar, Path(post_id): Path<i32>, Extension(connection_pool): Extension<SqlitePool>) -> Response {
+    let session_id = get_session_id(&jar);
+    if session_id.is_none() {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let session_id = session_id.unwrap();
+
+    let user = match db::get_user_from_session(&connection_pool, session_id).await {
+        Ok(user) => user,
+        Err(error) => {
+            dbg!(error);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    if user.is_none() {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let user = user.unwrap();
+
+    match db::posts::remove_like(&connection_pool, user.id, post_id).await {
+        Ok(post) => {
+            let like_button_template = LikeButtonTemplate { post };
+            Html(like_button_template.to_string()).into_response()
+        },
+        Err(error) => {
+            dbg!(&error);
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+#[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate<'a> {
     user_name: Option<&'a str>,
@@ -55,7 +145,7 @@ struct IndexTemplate<'a> {
 }
 
 async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>) -> Response {
-    let user: Option<User> = match jar.get("session_id") {
+    let user: Option<User> = match jar.get(SESSION_ID_COOKIE_KEY) {
         Some(session_id) => {
             let session_id: i32 = match session_id.value().parse() {
                 Ok(session_id) => session_id,
@@ -103,7 +193,7 @@ async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>
     if user_name.is_some() {
         Html(html_response).into_response()
     } else {
-        (jar.remove("session_id"), Html(html_response)).into_response()
+        (jar.remove(SESSION_ID_COOKIE_KEY), Html(html_response)).into_response()
     }
 }
 
@@ -128,7 +218,7 @@ struct PostsTemplate {
     posts: Vec<Post>,
 }
 async fn get_posts(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>) -> Response {
-    let user: Option<User> = match jar.get("session_id") {
+    let user: Option<User> = match jar.get(SESSION_ID_COOKIE_KEY) {
         Some(session_id) => {
             let session_id: i32 = match session_id.value().parse() {
                 Ok(session_id) => session_id,
@@ -151,7 +241,7 @@ async fn get_posts(jar: CookieJar, Extension(connection_pool): Extension<SqliteP
 
     let user_id = match user {
         Some(user) => Some(user.id),
-        None => None
+        None => None,
     };
     let posts = match db::posts::get_posts(&connection_pool, user_id).await {
         Ok(posts) => posts,
@@ -174,7 +264,7 @@ async fn create_post(
     Extension(connection_pool): Extension<SqlitePool>,
     Form(post_form): Form<PostForm>,
 ) -> Response {
-    let user_id: i32 = match jar.get("session_id") {
+    let user_id: i32 = match jar.get(SESSION_ID_COOKIE_KEY) {
         Some(session_id) => {
             let session_id: i32 = match session_id.value().parse() {
                 Ok(session_id) => session_id,

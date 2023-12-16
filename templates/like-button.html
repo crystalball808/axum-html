@@ -1,0 +1,5 @@
+{% if post.liked == true -%}
+<button hx-delete="/likes/{{ post.id }}" hx-swap="outerHTML" class="text-cyan-300">♥ {{ post.likes_count }}</button>
+{%- else -%}
+<button hx-post="/likes/{{ post.id }}" hx-swap="outerHTML">♥ {{ post.likes_count }}</button>
+{%- endif %}

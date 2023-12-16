@@ -1,13 +1,9 @@
 <ul hx-get="/posts" hx-trigger="postCreated from:body" class="flex flex-col gap-2 w-80" hx-swap="outerHTML">
-  {% for post in posts %}
+{% for post in posts %}
   <li class="p-2 rounded bg-cyan-700">
     <p>{{ post.author|e }}</p>
     <p>{{ post.body|e }}</p>
-    {% if post.liked == true -%}
-    <button class="text-cyan-300">♥ {{ post.likes_count }}</button>
-    {%- else -%}
-    <button>♥ {{ post.likes_count }}</button>
-    {%- endif %}
+    {% include "like-button.html" %}
   </li>
   {% endfor %}
 </ul>
