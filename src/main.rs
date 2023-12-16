@@ -15,25 +15,12 @@ use sqlx::SqlitePool;
 use std::fs;
 use tower_http::services::ServeFile;
 
-use crate::db::User;
+use db::User;
+use helpers::{get_session_id, SESSION_ID_COOKIE_KEY};
 
 mod db;
+mod helpers;
 mod utils;
-
-const SESSION_ID_COOKIE_KEY: &str = "session_id";
-fn get_session_id(jar: &CookieJar) -> Option<i32> {
-    let session_id_cookie = jar.get(SESSION_ID_COOKIE_KEY);
-
-    if let Some(session_id) = session_id_cookie {
-        let parsed_session_id = session_id.value().parse::<i32>();
-
-        if let Ok(session_id) = parsed_session_id {
-            return Some(session_id);
-        }
-    }
-
-    None
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -98,14 +85,18 @@ async fn like_post(
         Ok(post) => {
             let like_button_template = LikeButtonTemplate { post };
             Html(like_button_template.to_string()).into_response()
-        },
+        }
         Err(error) => {
             dbg!(&error);
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
 }
-async fn unlike_post(jar: CookieJar, Path(post_id): Path<i32>, Extension(connection_pool): Extension<SqlitePool>) -> Response {
+async fn unlike_post(
+    jar: CookieJar,
+    Path(post_id): Path<i32>,
+    Extension(connection_pool): Extension<SqlitePool>,
+) -> Response {
     let session_id = get_session_id(&jar);
     if session_id.is_none() {
         return StatusCode::UNAUTHORIZED.into_response();
@@ -129,7 +120,7 @@ async fn unlike_post(jar: CookieJar, Path(post_id): Path<i32>, Extension(connect
         Ok(post) => {
             let like_button_template = LikeButtonTemplate { post };
             Html(like_button_template.to_string()).into_response()
-        },
+        }
         Err(error) => {
             dbg!(&error);
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
@@ -145,24 +136,14 @@ struct IndexTemplate<'a> {
 }
 
 async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>) -> Response {
-    let user: Option<User> = match jar.get(SESSION_ID_COOKIE_KEY) {
-        Some(session_id) => {
-            let session_id: i32 = match session_id.value().parse() {
-                Ok(session_id) => session_id,
-                Err(error) => {
-                    dbg!(error);
-                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-                }
-            };
-
-            match db::get_user_from_session(&connection_pool, session_id).await {
-                Ok(user) => user,
-                Err(error) => {
-                    dbg!(error);
-                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-                }
+    let user: Option<User> = match get_session_id(&jar) {
+        Some(session_id) => match db::get_user_from_session(&connection_pool, session_id).await {
+            Ok(user) => user,
+            Err(error) => {
+                dbg!(error);
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
-        }
+        },
         None => None,
     };
 
@@ -177,7 +158,6 @@ async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    dbg!(&posts);
 
     let user_name = match user {
         Some(user) => Some(user.name),
@@ -218,24 +198,14 @@ struct PostsTemplate {
     posts: Vec<Post>,
 }
 async fn get_posts(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>) -> Response {
-    let user: Option<User> = match jar.get(SESSION_ID_COOKIE_KEY) {
-        Some(session_id) => {
-            let session_id: i32 = match session_id.value().parse() {
-                Ok(session_id) => session_id,
-                Err(error) => {
-                    dbg!(error);
-                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-                }
-            };
-
-            match db::get_user_from_session(&connection_pool, session_id).await {
-                Ok(user) => user,
-                Err(error) => {
-                    dbg!(error);
-                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-                }
+    let user: Option<User> = match get_session_id(&jar) {
+        Some(session_id) => match db::get_user_from_session(&connection_pool, session_id).await {
+            Ok(user) => user,
+            Err(error) => {
+                dbg!(error);
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
-        }
+        },
         None => None,
     };
 
@@ -264,33 +234,23 @@ async fn create_post(
     Extension(connection_pool): Extension<SqlitePool>,
     Form(post_form): Form<PostForm>,
 ) -> Response {
-    let user_id: i32 = match jar.get(SESSION_ID_COOKIE_KEY) {
-        Some(session_id) => {
-            let session_id: i32 = match session_id.value().parse() {
-                Ok(session_id) => session_id,
-                Err(error) => {
-                    dbg!(error);
-                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    let user_id: i32 = match get_session_id(&jar) {
+        Some(session_id) => match db::get_user_from_session(&connection_pool, session_id).await {
+            Ok(user) => match user {
+                Some(user) => user.id,
+                None => {
+                    return (
+                        jar.remove("session_id"),
+                        StatusCode::NETWORK_AUTHENTICATION_REQUIRED,
+                    )
+                        .into_response();
                 }
-            };
-
-            match db::get_user_from_session(&connection_pool, session_id).await {
-                Ok(user) => match user {
-                    Some(user) => user.id,
-                    None => {
-                        return (
-                            jar.remove("session_id"),
-                            StatusCode::NETWORK_AUTHENTICATION_REQUIRED,
-                        )
-                            .into_response();
-                    }
-                },
-                Err(error) => {
-                    dbg!(error);
-                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-                }
+            },
+            Err(error) => {
+                dbg!(error);
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
-        }
+        },
         None => {
             return StatusCode::NETWORK_AUTHENTICATION_REQUIRED.into_response();
         }

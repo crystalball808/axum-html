@@ -55,7 +55,6 @@ pub async fn create_post(connection_pool: &SqlitePool, author_id: i32, body: &st
 }
 
 pub async fn like_post(connection_pool: &SqlitePool, user_id: i32, post_id: i32) -> Result<Post> {
-    println!("Try to like a post");
     let query = "
 -- Insert a like
 INSERT INTO likes (user_id, post_id)
