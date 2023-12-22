@@ -5,37 +5,35 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::{delete, get, get_service, post},
-    Extension, Form, Router,
+    Extension, Form,
 };
-use axum_extra::extract::cookie::{Cookie, CookieJar};
+use axum_extra::extract::cookie::CookieJar;
 use db::posts::Post;
 use hyper::HeaderMap;
 use serde::Deserialize;
 use sqlx::SqlitePool;
-use std::fs;
 use tower_http::services::ServeFile;
 
 use db::User;
-use helpers::{get_session_id, SESSION_ID_COOKIE_KEY};
+use helpers::get_session_id;
+use routes::setup_router;
 
 mod db;
 mod helpers;
+mod routes;
 mod utils;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let generate_styles_output = utils::generate_styles();
-    println!("Generate styles output:{generate_styles_output}");
+    match utils::generate_styles() {
+        Ok(generate_styles_output) => println!("Generate styles output:{generate_styles_output}"),
+        Err(error) => panic!("Failed to generate styles: {error}"),
+    }
     dotenv::dotenv().ok();
 
     let connection_pool = db::init().await?;
 
-    let app = Router::new()
-        .route("/", get(index))
-        .route("/login", post(login))
-        .route("/login-form", get(login_form))
-        .route("/register", post(register))
-        .route("/register-form", get(register_form))
+    let app = setup_router()
         .route("/posts", get(get_posts))
         .route("/posts", post(create_post))
         .route("/likes/:post_id", post(like_post))
@@ -129,70 +127,6 @@ async fn unlike_post(
 }
 
 #[derive(Template)]
-#[template(path = "index.html")]
-struct IndexTemplate<'a> {
-    user_name: Option<&'a str>,
-    posts: Vec<Post>,
-}
-
-async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>) -> Response {
-    let user: Option<User> = match get_session_id(&jar) {
-        Some(session_id) => match db::get_user_from_session(&connection_pool, session_id).await {
-            Ok(user) => user,
-            Err(error) => {
-                dbg!(error);
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-            }
-        },
-        None => None,
-    };
-
-    let user_id = match &user {
-        Some(user) => Some(user.id),
-        None => None,
-    };
-    let posts = match db::posts::get_posts(&connection_pool, user_id).await {
-        Ok(posts) => posts,
-        Err(error) => {
-            dbg!(error);
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-    };
-
-    let user_name = match user {
-        Some(user) => Some(user.name),
-        None => None,
-    };
-    let template = IndexTemplate {
-        user_name: user_name.as_deref(),
-        posts,
-    };
-
-    let html_response = template.to_string();
-
-    if user_name.is_some() {
-        Html(html_response).into_response()
-    } else {
-        (jar.remove(SESSION_ID_COOKIE_KEY), Html(html_response)).into_response()
-    }
-}
-
-async fn login_form() -> Response {
-    return Html(fs::read_to_string("templates/login-form.html").unwrap()).into_response();
-}
-#[derive(Template)]
-#[template(path = "register-form.html")]
-struct RegisterFormTemplate<'a> {
-    user_name: Option<&'a str>,
-}
-async fn register_form() -> Response {
-    let template = RegisterFormTemplate {
-        user_name: Some(""),
-    };
-    return Html(template.to_string()).into_response();
-}
-
-#[derive(Template)]
 #[template(path = "posts.html")]
 struct PostsTemplate {
     posts: Vec<Post>,
@@ -268,79 +202,5 @@ async fn create_post(
             println!("{error}");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
-    }
-}
-
-#[derive(Deserialize)]
-struct LoginForm {
-    email: String,
-    password: String,
-}
-
-async fn login(
-    Extension(connection_pool): Extension<SqlitePool>,
-    jar: CookieJar,
-    Form(login_form): Form<LoginForm>,
-) -> impl IntoResponse {
-    let user_id =
-        db::get_user_id_from_login(&connection_pool, &login_form.email, &login_form.password).await;
-
-    match user_id {
-        Ok(user_id) => {
-            if let Some(user_id) = user_id {
-                dbg!(user_id);
-                if let Ok(session_id) = db::create_session(&connection_pool, user_id).await {
-                    let mut headers = HeaderMap::new();
-                    headers.insert("HX-Refresh", "true".parse().unwrap());
-                    return (
-                        jar.add(Cookie::new("session_id", session_id.to_string())),
-                        headers,
-                    )
-                        .into_response();
-                }
-            }
-        }
-        Err(error) => {
-            println!("{error}");
-        }
-    }
-    StatusCode::INTERNAL_SERVER_ERROR.into_response()
-}
-
-#[derive(Deserialize, Debug)]
-struct RegisterForm {
-    name: String,
-    email: String,
-    password: String,
-}
-
-async fn register(
-    Extension(connection_pool): Extension<SqlitePool>,
-    Form(register_form): Form<RegisterForm>,
-) -> Response {
-    let email_exists_result = db::check_email_exists(&connection_pool, &register_form.email).await;
-
-    if let Ok(email_exists) = email_exists_result {
-        if email_exists {
-            return (StatusCode::BAD_REQUEST).into_response();
-        } else {
-            if db::create_user(
-                &connection_pool,
-                &register_form.email,
-                &register_form.name,
-                &register_form.password,
-            )
-            .await
-            .is_ok()
-            {
-                let mut headers = HeaderMap::new();
-                headers.insert("HX-Redirect", "/".parse().unwrap());
-                return headers.into_response();
-            } else {
-                return (StatusCode::INTERNAL_SERVER_ERROR).into_response();
-            }
-        }
-    } else {
-        return (StatusCode::INTERNAL_SERVER_ERROR).into_response();
     }
 }
