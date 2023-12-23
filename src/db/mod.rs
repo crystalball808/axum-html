@@ -10,12 +10,6 @@ pub struct User {
     pub name: String,
 }
 
-#[derive(FromRow, Debug)]
-pub struct Session {
-    user_id: i32,
-}
-
-
 pub async fn init() -> Result<SqlitePool> {
     let database_url = std::env::var("DATABASE_URL")?;
     let connection_pool = SqlitePool::connect(&database_url).await?;
@@ -23,15 +17,6 @@ pub async fn init() -> Result<SqlitePool> {
     sqlx::migrate!().run(&connection_pool).await?;
 
     Ok(connection_pool)
-}
-
-pub async fn check_session_id(connection_pool: &SqlitePool, session_id: i32) -> Result<bool> {
-    let result = sqlx::query_as::<_, Session>("SELECT user_id FROM sessions WHERE id=$1")
-        .bind(session_id)
-        .fetch_optional(connection_pool)
-        .await?;
-
-    return Ok(result.is_some());
 }
 
 pub async fn get_user_from_session(
@@ -99,3 +84,11 @@ pub async fn create_session(connection_pool: &SqlitePool, user_id: i32) -> Resul
     )
 }
 
+pub async fn delete_session_by_id(connection_pool: &SqlitePool, session_id: i32) -> Result<()> {
+    sqlx::query("delete from sessions where session_id = $1")
+        .bind(session_id)
+        .execute(connection_pool)
+        .await?;
+
+    Ok(())
+}

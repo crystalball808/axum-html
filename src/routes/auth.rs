@@ -1,4 +1,3 @@
-use crate::db;
 use askama::Template;
 use axum::{
     http::StatusCode,
@@ -12,12 +11,33 @@ use serde::Deserialize;
 use sqlx::SqlitePool;
 use std::fs;
 
+use crate::{
+    db,
+    helpers::{self, SESSION_ID_COOKIE_KEY},
+};
+
 pub fn setup_auth_router() -> Router {
     Router::new()
         .route("/login", post(login))
         .route("/login-form", get(login_form))
         .route("/register", post(register))
         .route("/register-form", get(register_form))
+        .route("/logout", post(logout))
+}
+
+async fn logout(Extension(connection_pool): Extension<SqlitePool>, jar: CookieJar) -> Response {
+    let session_id = helpers::get_session_id(&jar);
+    if session_id.is_none() {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    let session_id = session_id.unwrap();
+
+    db::delete_session_by_id(&connection_pool, session_id).await;
+
+    let mut headers = HeaderMap::new();
+    headers.insert("HX-Refresh", "true".parse().unwrap());
+
+    (headers, jar.remove(SESSION_ID_COOKIE_KEY)).into_response()
 }
 
 #[derive(Deserialize)]
