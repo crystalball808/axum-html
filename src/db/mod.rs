@@ -1,5 +1,7 @@
+use std::str::FromStr;
+
 use anyhow::Result;
-use sqlx::{FromRow, Row, SqlitePool};
+use sqlx::{sqlite::SqliteConnectOptions, FromRow, Row, SqlitePool};
 
 pub mod posts;
 
@@ -12,7 +14,8 @@ pub struct User {
 
 pub async fn init() -> Result<SqlitePool> {
     let database_url = std::env::var("DATABASE_URL")?;
-    let connection_pool = SqlitePool::connect(&database_url).await?;
+    let options = SqliteConnectOptions::from_str(&database_url)?.create_if_missing(true);
+    let connection_pool = SqlitePool::connect_with(options).await?;
 
     sqlx::migrate!().run(&connection_pool).await?;
 
@@ -51,11 +54,9 @@ pub async fn get_user_id_from_login(
 }
 
 pub async fn check_email_exists(connection_pool: &SqlitePool, email: &str) -> Result<bool> {
-    let result = sqlx::query_as::<_, User>("SELECT id FROM users WHERE email=$1")
-        .bind(email)
+    let result = sqlx::query!("SELECT id FROM users WHERE email=$1", email)
         .fetch_optional(connection_pool)
         .await?;
-
     Ok(result.is_some())
 }
 
@@ -85,7 +86,7 @@ pub async fn create_session(connection_pool: &SqlitePool, user_id: i32) -> Resul
 }
 
 pub async fn delete_session_by_id(connection_pool: &SqlitePool, session_id: i32) -> Result<()> {
-    sqlx::query("delete from sessions where session_id = $1")
+    sqlx::query("delete from sessions where id = $1")
         .bind(session_id)
         .execute(connection_pool)
         .await?;

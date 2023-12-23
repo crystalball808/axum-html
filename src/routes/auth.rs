@@ -23,6 +23,7 @@ pub fn setup_auth_router() -> Router {
         .route("/register", post(register))
         .route("/register-form", get(register_form))
         .route("/logout", post(logout))
+        .route("/email/registered", post(check_email_registered))
 }
 
 async fn logout(Extension(connection_pool): Extension<SqlitePool>, jar: CookieJar) -> Response {
@@ -32,12 +33,18 @@ async fn logout(Extension(connection_pool): Extension<SqlitePool>, jar: CookieJa
     }
     let session_id = session_id.unwrap();
 
-    db::delete_session_by_id(&connection_pool, session_id).await;
+    match db::delete_session_by_id(&connection_pool, session_id).await {
+        Ok(()) => {
+            let mut headers = HeaderMap::new();
+            headers.insert("HX-Refresh", "true".parse().unwrap());
 
-    let mut headers = HeaderMap::new();
-    headers.insert("HX-Refresh", "true".parse().unwrap());
-
-    (headers, jar.remove(SESSION_ID_COOKIE_KEY)).into_response()
+            return (headers, jar.remove(SESSION_ID_COOKIE_KEY)).into_response();
+        }
+        Err(error) => {
+            println!("{error}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
 }
 
 #[derive(Deserialize)]
@@ -45,6 +52,33 @@ struct LoginForm {
     email: String,
     password: String,
 }
+async fn check_email_registered(
+    Extension(connection_pool): Extension<SqlitePool>,
+    Form(form): Form<LoginForm>,
+) -> Response {
+    println!("Checking the email: {}", &form.email);
+    match db::check_email_exists(&connection_pool, &form.email).await {
+        Ok(exists) => {
+            if exists {
+                StatusCode::OK.into_response()
+            } else {
+                let html = "
+    <div hx-target=\"this\" hx-swap=\"outerHTML\">
+      <label for=\"email\">Email</label>
+      <input id=\"email\" name=\"email\" hx-post=\"/email/registered\" class=\"text-black\" type=\"email\" />
+        <label>This email is not registered</label>
+    </div>
+";
+                Html(html).into_response()
+            }
+        }
+        Err(error) => {
+            println!("{error}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
 async fn login(
     Extension(connection_pool): Extension<SqlitePool>,
     jar: CookieJar,
