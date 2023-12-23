@@ -2,3 +2,4 @@
 node_modules
 tailwind-generated.css
 .env
+:local-db.sqlite

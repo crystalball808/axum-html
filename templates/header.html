@@ -3,6 +3,6 @@
   <p>{{ user_name.unwrap() }}</p>
   <button hx-post="/logout" type="button">Log out</button>
   {%- else -%}
-  {% include "login-form.html" %}
+  {% include "login-form/index.html" %}
   {%- endif %}
 </header>

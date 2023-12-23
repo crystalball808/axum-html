@@ -1,5 +1,0 @@
-<ul hx-get="/todos" hx-trigger="todoCreated from:body" hx-swap="outerHTML">
-  {% for todo in todos %}
-    <li class="text-red-400 font-bold">{{ todo.label|e }}</li>
-  {% endfor %}
-</ul>

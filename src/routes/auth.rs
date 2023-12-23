@@ -52,25 +52,22 @@ struct LoginForm {
     email: String,
     password: String,
 }
+
 async fn check_email_registered(
     Extension(connection_pool): Extension<SqlitePool>,
     Form(form): Form<LoginForm>,
 ) -> Response {
-    println!("Checking the email: {}", &form.email);
     match db::check_email_exists(&connection_pool, &form.email).await {
         Ok(exists) => {
-            if exists {
-                StatusCode::OK.into_response()
+            let html = if exists {
+                fs::read_to_string("templates/login-form/email-input-valid.html")
+                    .expect("what the hell")
             } else {
-                let html = "
-    <div hx-target=\"this\" hx-swap=\"outerHTML\">
-      <label for=\"email\">Email</label>
-      <input id=\"email\" name=\"email\" hx-post=\"/email/registered\" class=\"text-black\" type=\"email\" />
-        <label>This email is not registered</label>
-    </div>
-";
-                Html(html).into_response()
-            }
+                fs::read_to_string("templates/login-form/email-input-invalid.html")
+                    .expect("what the hell")
+            };
+            println!("{html}");
+            Html(html).into_response()
         }
         Err(error) => {
             println!("{error}");
@@ -110,7 +107,7 @@ async fn login(
 }
 
 async fn login_form() -> Response {
-    return Html(fs::read_to_string("templates/login-form.html").unwrap()).into_response();
+    return Html(fs::read_to_string("templates/login-form/index.html").unwrap()).into_response();
 }
 
 #[derive(Deserialize, Debug)]
