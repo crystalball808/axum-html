@@ -54,7 +54,8 @@ pub async fn get_user_id_from_login(
 }
 
 pub async fn check_email_exists(connection_pool: &SqlitePool, email: &str) -> Result<bool> {
-    let result = sqlx::query!("SELECT id FROM users WHERE email=$1", email)
+    let result = sqlx::query_as::<_, UserId>("SELECT id FROM users WHERE email=$1")
+        .bind(email)
         .fetch_optional(connection_pool)
         .await?;
     Ok(result.is_some())
