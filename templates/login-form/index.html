@@ -1,7 +1,8 @@
 <div id="login-form" class="flex p-2">
   <form hx-post="/login" class="flex gap-2" hx-swap="none">
     {% include "login-form/email-input-valid.html" %}
-    <input type="password" id="password" placeholder="password" class="p-1 bg-cyan-950 rounded-sm" name="password" />
+    <input type="password" id="password" placeholder="password" class="px-1 h-6 bg-cyan-950 rounded-sm"
+      name="password" />
     <button type="submit">Login</button>
   </form>
   <a href="/register-form">

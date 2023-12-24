@@ -1,4 +1,4 @@
-<header class="h-12 bg-gradient-to-b from-sky-800 to-cyan-600 shadow-md dark:shadow-cyan-400">
+<header class="sticky top-0 h-14 bg-gradient-to-b from-sky-800 to-cyan-600 shadow-md dark:shadow-cyan-400">
   {% if user_name.is_some() -%}
   <p>{{ user_name.unwrap() }}</p>
   <button hx-post="/logout" type="button">Log out</button>
