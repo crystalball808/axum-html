@@ -8,9 +8,11 @@
   <script src="https://unpkg.com/htmx.org@1.9.9"
     integrity="sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX"
     crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
   <title>Document</title>
 </head>
-<body hx-boost="true" class="dark:bg-cyan-950 dark:text-white">
+
+<body hx-boost="true" class="bg-cyan-50 dark:bg-cyan-950 dark:text-white">
   {% include "header.html" %}
   <div class="p-8">
     {% if user_name.is_some() -%}

@@ -1,8 +1,22 @@
-<header class="sticky top-0 h-14 bg-gradient-to-b from-sky-800 to-cyan-600 shadow-md dark:shadow-cyan-400">
+<header
+  class="sticky flex justify-between top-0 h-14 p-2 bg-gradient-to-b from-sky-800 to-cyan-600 shadow-md dark:shadow-cyan-400">
   {% if user_name.is_some() -%}
   <p>{{ user_name.unwrap() }}</p>
   <button hx-post="/logout" type="button">Log out</button>
   {%- else -%}
   {% include "login-form/index.html" %}
   {%- endif %}
+  <select id="theme-picker"
+    class="h-10 bg-cyan-500 text-white border border-cyan-600 focus:border-cyan-700 focus:ring focus:ring-cyan-300 dark:bg-cyan-700 dark:border-cyan-800 dark:text-white p-2 rounded"
+    _="on load
+         if window.matchMedia('(prefers-color-scheme: dark)').matches then
+           add .dark to <html/>
+           set me.value to 'Night'
+         end
+       on change
+         if event.target.value is 'Day' then take .dark from <html/> end
+         if event.target.value is 'Night' then add .dark to <html/> end">
+    <option value="Day">Day</option>
+    <option value="Night">Night</option>
+  </select>
 </header>
