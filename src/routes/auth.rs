@@ -153,8 +153,6 @@ struct RegisterFormTemplate<'a> {
     user_name: Option<&'a str>,
 }
 async fn register_form() -> Response {
-    let template = RegisterFormTemplate {
-        user_name: Some(""),
-    };
+    let template = RegisterFormTemplate { user_name: None };
     return Html(template.to_string()).into_response();
 }
