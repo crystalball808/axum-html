@@ -1,4 +1,5 @@
 mod auth;
+mod posts;
 use askama::Template;
 use auth::setup_auth_router;
 use axum::{
@@ -8,6 +9,7 @@ use axum::{
     Extension, Router,
 };
 use axum_extra::{extract::CookieJar, response::Html};
+use posts::setup_posts_router;
 use sqlx::SqlitePool;
 
 use crate::{
@@ -19,6 +21,7 @@ pub fn setup_router() -> Router {
     Router::new()
         .route("/", get(index))
         .merge(setup_auth_router())
+        .merge(setup_posts_router())
 }
 
 #[derive(Template)]
