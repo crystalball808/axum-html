@@ -6,6 +6,7 @@ pub struct Post {
     pub id: i32,
     pub body: String,
     pub author: String,
+    pub comments_count: i32,
     pub likes_count: i32,
     pub liked: bool,
 }
@@ -17,7 +18,11 @@ pub struct Like {
     pub post_id: i32,
 }
 
-pub async fn get_posts(connection_pool: &SqlitePool, user_id: Option<i32>) -> Result<Vec<Post>> {
+pub async fn get_by_id(
+    connection_pool: &SqlitePool,
+    user_id: Option<i32>,
+    post_id: i32,
+) -> Result<Post> {
     let user_id = user_id.unwrap_or(0);
 
     let query = "
@@ -25,6 +30,7 @@ SELECT
     p.id, 
     p.body, 
     u.name AS author, 
+    COUNT(c.id) AS comments_count,
     COUNT(l.id) AS likes_count,
     CASE WHEN SUM(l.user_id = $1) > 0 THEN 1 ELSE 0 END AS liked
 FROM 
@@ -33,6 +39,40 @@ JOIN
     users u ON u.id = p.author_id
 LEFT JOIN 
     likes l ON l.post_id = p.id
+LEFT JOIN
+    comments c on c.post_id = p.id
+WHERE 
+    p.id = $2 -- Replace $2 with the ID of the post you want to fetch
+GROUP BY 
+    p.id, p.body, u.name;
+";
+
+    Ok(sqlx::query_as::<_, Post>(query)
+        .bind(user_id)
+        .bind(post_id)
+        .fetch_one(connection_pool)
+        .await?)
+}
+
+pub async fn get_all(connection_pool: &SqlitePool, user_id: Option<i32>) -> Result<Vec<Post>> {
+    let user_id = user_id.unwrap_or(0);
+
+    let query = "
+SELECT 
+    p.id, 
+    p.body, 
+    u.name AS author, 
+    COUNT(c.id) AS comments_count,
+    COUNT(l.id) AS likes_count,
+    CASE WHEN SUM(l.user_id = $1) > 0 THEN 1 ELSE 0 END AS liked
+FROM 
+    posts p
+JOIN 
+    users u ON u.id = p.author_id
+LEFT JOIN 
+    likes l ON l.post_id = p.id
+LEFT JOIN
+    comments c on c.post_id = p.id
 GROUP BY 
     p.id, p.body, u.name;
 ";

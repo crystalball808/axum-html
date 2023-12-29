@@ -42,11 +42,8 @@ async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>
         None => None,
     };
 
-    let user_id = match &user {
-        Some(user) => Some(user.id),
-        None => None,
-    };
-    let posts = match db::posts::get_posts(&connection_pool, user_id).await {
+    let user_id = user.as_ref().map(|u| u.id);
+    let posts = match db::posts::get_all(&connection_pool, user_id).await {
         Ok(posts) => posts,
         Err(error) => {
             dbg!(error);
@@ -54,10 +51,7 @@ async fn index(jar: CookieJar, Extension(connection_pool): Extension<SqlitePool>
         }
     };
 
-    let user_name = match user {
-        Some(user) => Some(user.name),
-        None => None,
-    };
+    let user_name = user.map(|u| u.name);
     let template = IndexTemplate {
         user_name: user_name.as_deref(),
         posts,

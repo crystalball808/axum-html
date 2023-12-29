@@ -19,9 +19,51 @@ use crate::{
 pub fn setup_posts_router() -> Router {
     Router::new()
         .route("/posts", get(get_posts))
+        .route("/posts/:post_id", get(get_one_post))
         .route("/posts", post(create_post))
         .route("/likes/:post_id", post(like_post))
         .route("/likes/:post_id", delete(unlike_post))
+}
+
+#[derive(Template)]
+#[template(path = "post.html")]
+struct PostTemplate<'a> {
+    post: Post,
+    user_name: Option<&'a str>,
+}
+async fn get_one_post(
+    jar: CookieJar,
+    Path(post_id): Path<i32>,
+    Extension(connection_pool): Extension<SqlitePool>,
+) -> Response {
+    let user: Option<User> = match get_session_id(&jar) {
+        Some(session_id) => match db::get_user_from_session(&connection_pool, session_id).await {
+            Ok(user) => user,
+            Err(error) => {
+                dbg!(error);
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        },
+        None => None,
+    };
+    let user_id = user.as_ref().map(|u| u.id);
+
+    let post = match db::posts::get_by_id(&connection_pool, user_id, post_id).await {
+        Ok(post) => post,
+        Err(error) => {
+            dbg!(error);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    let user_name = user.map(|u| u.name);
+
+    let post_template = PostTemplate {
+        post,
+        user_name: user_name.as_deref(),
+    };
+
+    Html(post_template.to_string()).into_response()
 }
 
 #[derive(Template)]
@@ -41,11 +83,9 @@ async fn get_posts(jar: CookieJar, Extension(connection_pool): Extension<SqliteP
         None => None,
     };
 
-    let user_id = match user {
-        Some(user) => Some(user.id),
-        None => None,
-    };
-    let posts = match db::posts::get_posts(&connection_pool, user_id).await {
+    let user_id = user.map(|u| u.id);
+
+    let posts = match db::posts::get_all(&connection_pool, user_id).await {
         Ok(posts) => posts,
         Err(error) => {
             println!("{error}");
