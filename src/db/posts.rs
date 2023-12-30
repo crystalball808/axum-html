@@ -54,6 +54,8 @@ GROUP BY
         .await?)
 }
 
+/// Get all posts
+/// `user_id` to determine if user liked a post
 pub async fn get_all(connection_pool: &SqlitePool, user_id: Option<i32>) -> Result<Vec<Post>> {
     let user_id = user_id.unwrap_or(0);
 
