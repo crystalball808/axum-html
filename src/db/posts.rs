@@ -160,3 +160,18 @@ GROUP BY
         .fetch_one(connection_pool)
         .await?)
 }
+
+#[derive(FromRow, Debug)]
+pub struct Comment {
+    pub body: String,
+    pub author: String,
+}
+
+pub async fn comments(connection_pool: &SqlitePool, post_id: i32) -> Result<Vec<Comment>> {
+    let query = "select body, u.name as author from comments c join users u on c.author_id = u.id where c.post_id = $1";
+
+    Ok(sqlx::query_as::<_, Comment>(query)
+        .bind(post_id)
+        .fetch_all(connection_pool)
+        .await?)
+}

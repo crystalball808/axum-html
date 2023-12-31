@@ -1,0 +1,8 @@
+<ul hx-get="/posts/{{ post_id }}/comments" hx-trigger="commentCreated from:body" hx-swap="outerHTML">
+  {% for comment in comments %}
+  <li>
+    <p>{{ comment.author|e }}</p>
+    <p>{{ comment.body|e }}</p>
+  </li>
+  {% endfor %}
+</ul>

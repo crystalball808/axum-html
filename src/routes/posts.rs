@@ -12,7 +12,11 @@ use serde::Deserialize;
 use sqlx::SqlitePool;
 
 use crate::{
-    db::{self, posts::Post, User},
+    db::{
+        self,
+        posts::{Comment, Post},
+        User,
+    },
     helpers::get_session_id,
 };
 
@@ -20,9 +24,33 @@ pub fn setup_posts_router() -> Router {
     Router::new()
         .route("/posts", get(get_posts))
         .route("/posts/:post_id", get(get_one_post))
+        .route("/posts/:post_id/comments", get(get_comments_by_post_id))
         .route("/posts", post(create_post))
         .route("/likes/:post_id", post(like_post))
         .route("/likes/:post_id", delete(unlike_post))
+}
+
+#[derive(Template)]
+#[template(path = "comments.html")]
+struct CommentsTemplate {
+    comments: Vec<Comment>,
+    post_id: i32,
+}
+async fn get_comments_by_post_id(
+    Path(post_id): Path<i32>,
+    Extension(connection_pool): Extension<SqlitePool>,
+) -> Response {
+    let comments = match db::posts::comments(&connection_pool, post_id).await {
+        Ok(comments) => comments,
+        Err(error) => {
+            dbg!(error);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    let template = CommentsTemplate { comments, post_id };
+
+    Html(template.to_string()).into_response()
 }
 
 #[derive(Template)]
@@ -30,6 +58,9 @@ pub fn setup_posts_router() -> Router {
 struct PostTemplate<'a> {
     post: Post,
     user_name: Option<&'a str>,
+    // comments related
+    post_id: i32,
+    comments: Vec<Comment>,
 }
 async fn get_one_post(
     jar: CookieJar,
@@ -55,11 +86,20 @@ async fn get_one_post(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
+    let comments = match db::posts::comments(&connection_pool, post_id).await {
+        Ok(comments) => comments,
+        Err(error) => {
+            dbg!(error);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
 
     let user_name = user.map(|u| u.name);
 
     let post_template = PostTemplate {
+        post_id: post.id,
         post,
+        comments,
         user_name: user_name.as_deref(),
     };
 
